@@ -1,3 +1,6 @@
+# viper-strategy-extraction
+extract strategy from trained NN model, built on viper-verifiable-rl-impl
+
 # Viper
 
 Read the accompanying blog post here (tbd).
@@ -55,4 +58,7 @@ Toy Pong:
 ```
 python main.py train-viper --env-name ToyPong-v0 --n-env 4 --max-leaves 61 --total-timesteps 1_000_000
 ```
+=======
+# viper-strategy-extraction
+extract strategy from trained NN model, built on viper-verifiable-rl-impl
 
