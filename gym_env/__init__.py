@@ -1,4 +1,4 @@
-import gymnasium as gym
+import gym
 from gym import register
 from stable_baselines3.common.env_util import make_atari_env
 from stable_baselines3.common.monitor import Monitor

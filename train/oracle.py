@@ -16,7 +16,7 @@ def train_oracle(args):
 
     log_name = f"{args.log_prefix}{args.env_name}_{args.n_env}env_{kwargs_to_str(policy_kwargs)}"
 
-    model.learn(total_timesteps=args.total_timesteps,
+    model.learn(total_timesteps=args.total_timesteps, eval_freq=args.total_timesteps // 10,
                 reset_num_timesteps=not args.resume, tb_log_name=log_name)
     model_path = get_oracle_path(args)
     model.save(model_path)
