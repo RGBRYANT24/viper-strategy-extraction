@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/home/dai/PRIVE/Projects/Viper/viper-verifiable-rl-impl/main.py", line 3, in <module>
+    from train.oracle import train_oracle
+  File "/home/dai/PRIVE/Projects/Viper/viper-verifiable-rl-impl/train/oracle.py", line 3, in <module>
+    from gym_env import make_env
+  File "/home/dai/PRIVE/Projects/Viper/viper-verifiable-rl-impl/gym_env/__init__.py", line 9
+    register(ß
+             ^^
+SyntaxError: invalid syntax. Perhaps you forgot a comma?
+srun: error: r9ng-l40s-1: task 0: Exited with exit code 1

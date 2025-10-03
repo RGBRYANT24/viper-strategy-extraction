@@ -1,0 +1,265 @@
+"""
+TicTacToe 环境实现 - 与 VIPER 框架完全兼容
+文件位置: envs/tictactoe.py
+
+使用方式：
+1. 将此文件放入 viper-verifiable-rl-impl/envs/ 目录
+2. 在 main.py 中注册环境
+3. 使用框架的标准命令训练
+"""
+
+import gymnasium as gym
+from gymnasium import spaces
+import numpy as np
+
+
+class TicTacToeEnv(gym.Env):
+    """
+    Tic-Tac-Toe 单人训练环境（对战随机对手）
+    
+    状态表示: 9维向量 [pos0, pos1, ..., pos8]
+        - 1: X (我方)
+        - -1: O (对手)  
+        - 0: 空
+    
+    动作空间: Discrete(9) - 选择 0-8 号位置落子
+    
+    奖励:
+        - +1: 获胜
+        - -1: 失败
+        - 0: 平局
+        - -10: 非法移动
+    """
+    
+    metadata = {'render.modes': ['human', 'ansi']}
+    
+    def __init__(self):
+        super().__init__()
+        
+        # 状态空间: 9个位置，每个位置 -1, 0, 或 1
+        self.observation_space = spaces.Box(
+            low=-1.0, 
+            high=1.0, 
+            shape=(9,), 
+            dtype=np.float32
+        )
+        
+        # 动作空间: 9个可能的位置
+        self.action_space = spaces.Discrete(9)
+        
+        # 游戏状态
+        self.board = None
+        self.done = False
+        self.winner = None
+        
+        # 获胜组合（行、列、对角线）
+        self.win_combinations = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],  # 行
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],  # 列
+            [0, 4, 8], [2, 4, 6]              # 对角线
+        ]
+        
+    def reset(self):
+        """重置环境到初始状态"""
+        self.board = np.zeros(9, dtype=np.float32)
+        self.done = False
+        self.winner = None
+        return self.board.copy()
+    
+    def step(self, action):
+        """
+        执行一步动作
+        
+        Args:
+            action: 0-8 的整数，表示落子位置
+            
+        Returns:
+            observation: 新的棋盘状态
+            reward: 奖励值
+            done: 是否结束
+            info: 额外信息
+        """
+        if self.done:
+            return self.board.copy(), 0, True, {'error': 'game_already_done'}
+        
+        # 检查动作是否合法
+        if not self._is_valid_action(action):
+            # 非法移动，游戏结束并给予惩罚
+            self.done = True
+            return self.board.copy(), -10, True, {'illegal_move': True}
+        
+        # 玩家 X 落子
+        self.board[action] = 1
+        
+        # 检查玩家是否获胜
+        if self._check_winner(1):
+            self.done = True
+            self.winner = 1
+            return self.board.copy(), 1, True, {'winner': 'X'}
+        
+        # 检查是否平局
+        if not self._has_empty_cells():
+            self.done = True
+            return self.board.copy(), 0, True, {'draw': True}
+        
+        # 对手 O 随机落子
+        opponent_action = self._opponent_move()
+        self.board[opponent_action] = -1
+        
+        # 检查对手是否获胜
+        if self._check_winner(-1):
+            self.done = True
+            self.winner = -1
+            return self.board.copy(), -1, True, {'winner': 'O'}
+        
+        # 再次检查平局
+        if not self._has_empty_cells():
+            self.done = True
+            return self.board.copy(), 0, True, {'draw': True}
+        
+        # 游戏继续
+        return self.board.copy(), 0, False, {}
+    
+    def _is_valid_action(self, action):
+        """检查动作是否合法"""
+        return 0 <= action < 9 and self.board[action] == 0
+    
+    def _check_winner(self, player):
+        """检查某个玩家是否获胜"""
+        for combo in self.win_combinations:
+            if all(self.board[pos] == player for pos in combo):
+                return True
+        return False
+    
+    def _has_empty_cells(self):
+        """检查是否还有空位"""
+        return np.any(self.board == 0)
+    
+    def _get_legal_actions(self):
+        """获取所有合法动作"""
+        return np.where(self.board == 0)[0]
+    
+    def _opponent_move(self):
+        """对手（随机策略）选择动作"""
+        legal_actions = self._get_legal_actions()
+        return np.random.choice(legal_actions)
+    
+    def render(self, mode='human'):
+        """渲染当前棋盘状态"""
+        symbols = {1: 'X', -1: 'O', 0: '.'}
+        board_2d = self.board.reshape(3, 3)
+        
+        output = "\n"
+        for i in range(3):
+            row = " | ".join([symbols[int(cell)] for cell in board_2d[i]])
+            output += f"  {row}\n"
+            if i < 2:
+                output += " -----------\n"
+        
+        if mode == 'human':
+            print(output)
+        return output
+    
+    def close(self):
+        """清理资源"""
+        pass
+
+
+class TicTacToeSymmetricEnv(TicTacToeEnv):
+    """
+    增强版 TicTacToe 环境 - 支持数据增强
+    通过旋转和镜像增加训练数据多样性
+    """
+    
+    def __init__(self, use_augmentation=True):
+        super().__init__()
+        self.use_augmentation = use_augmentation
+        
+    def step(self, action):
+        """支持数据增强的 step"""
+        obs, reward, done, info = super().step(action)
+        
+        # 如果启用数据增强，随机应用旋转或镜像
+        if self.use_augmentation and not done:
+            if np.random.random() < 0.2:  # 20% 概率
+                obs = self._apply_random_transform(obs)
+        
+        return obs, reward, done, info
+    
+    def _apply_random_transform(self, board):
+        """应用随机的对称变换"""
+        board_2d = board.reshape(3, 3)
+        
+        # 随机选择变换
+        transform = np.random.choice(['rotate90', 'rotate180', 'rotate270', 'flip_h', 'flip_v'])
+        
+        if transform == 'rotate90':
+            board_2d = np.rot90(board_2d, k=1)
+        elif transform == 'rotate180':
+            board_2d = np.rot90(board_2d, k=2)
+        elif transform == 'rotate270':
+            board_2d = np.rot90(board_2d, k=3)
+        elif transform == 'flip_h':
+            board_2d = np.fliplr(board_2d)
+        elif transform == 'flip_v':
+            board_2d = np.flipud(board_2d)
+        
+        return board_2d.flatten()
+
+
+# ============ Gym 注册 ============
+# 将以下代码添加到 envs/__init__.py 或 main.py
+
+try:
+    from gymnasium.envs.registration import register
+
+    register(
+        id='TicTacToe-v0',
+        entry_point='gym_env.tictactoe:TicTacToeEnv',
+        max_episode_steps=9,  # 最多 9 步
+    )
+
+    register(
+        id='TicTacToeSymmetric-v0',
+        entry_point='gym_env.tictactoe:TicTacToeSymmetricEnv',
+        max_episode_steps=9,
+    )
+
+    print("✅ TicTacToe environments registered successfully!")
+
+except Exception as e:
+    print(f"⚠️  Environment registration failed: {e}")
+
+
+# ============ 测试代码 ============
+if __name__ == "__main__":
+    print("Testing TicTacToe Environment...")
+    
+    env = TicTacToeEnv()
+    
+    # 测试 1: 基本功能
+    print("\n=== Test 1: Basic Functionality ===")
+    obs = env.reset()
+    print(f"Initial state: {obs}")
+    env.render()
+    
+    # 测试 2: 完整游戏
+    print("\n=== Test 2: Full Game ===")
+    obs = env.reset()
+    done = False
+    step_count = 0
+    
+    while not done and step_count < 10:
+        # 随机选择合法动作
+        legal_actions = np.where(obs == 0)[0]
+        if len(legal_actions) == 0:
+            break
+        action = np.random.choice(legal_actions)
+
+        obs, reward, done, info = env.step(action)
+        print(f"Step {step_count + 1}: action={action}, reward={reward}")
+        env.render()
+
+        step_count += 1
+
+    print(f"\nFinal game state - Done: {done}, Steps: {step_count}")
