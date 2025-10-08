@@ -16,8 +16,14 @@ def train_oracle(args):
 
     log_name = f"{args.log_prefix}{args.env_name}_{args.n_env}env_{kwargs_to_str(policy_kwargs)}"
 
-    model.learn(total_timesteps=args.total_timesteps, eval_freq=args.total_timesteps // 10,
-                reset_num_timesteps=not args.resume, tb_log_name=log_name)
+    # DQN doesn't support eval_freq, PPO does
+    if isinstance(model, DQN):
+        model.learn(total_timesteps=args.total_timesteps,
+                    reset_num_timesteps=not args.resume, tb_log_name=log_name, log_interval=100)
+    else:
+        model.learn(total_timesteps=args.total_timesteps, eval_freq=args.total_timesteps // 10,
+                    reset_num_timesteps=not args.resume, tb_log_name=log_name)
+
     model_path = get_oracle_path(args)
     model.save(model_path)
     model.save(f"./log/{log_name}/model")
@@ -70,6 +76,28 @@ ENV_TO_MODEL = {
             'policy_kwargs': {
                 'net_arch': [64, dict(pi=[128, 64], vf=[64, 64])]
             }
+        }
+    },
+    'TicTacToe-v0': {
+        'model': DQN,
+        'kwargs': {
+            'policy': 'MlpPolicy',
+            'learning_starts': 1000,
+            'learning_rate': 1e-3,
+            'buffer_size': 100_000,
+            'batch_size': 64,
+            'target_update_interval': 500,
+            'train_freq': 4,
+            'gradient_steps': 1,
+            'exploration_fraction': 0.3,
+            'exploration_final_eps': 0.05,
+            'policy_kwargs': {
+                'net_arch': [128, 128]
+            }
+        },
+        'kwargs_resume': {
+            'exploration_final_eps': 0.05,
+            'exploration_initial_eps': 0.1
         }
     }
 }

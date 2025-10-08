@@ -1,0 +1,1257 @@
+================================================================================
+DECISION TREE STRATEGY ANALYSIS REPORT
+TicTacToe Game - VIPER Algorithm
+================================================================================
+
+================================================================================
+EXECUTIVE SUMMARY
+================================================================================
+
+Model Performance:
+  • Neural Network (DQN): Mean reward 0.88 ± 0.47
+  • Decision Tree (VIPER): Mean reward 0.86 ± 0.49
+  • Performance Retention: 97.7%
+
+Decision Tree Characteristics:
+  • Total Rules: 59
+  • Tree Depth: 8
+  • Leaf Nodes: 85
+  • Total Training Samples: 3,613
+  • All Rules have 100% Confidence
+        
+
+================================================================================
+COVERAGE ANALYSIS
+================================================================================
+
+Rule Distribution (how many rules needed to cover X% of games):
+  Top  1 rules cover 10% of games
+  Top  1 rules cover 20% of games
+  Top  2 rules cover 30% of games
+  Top  3 rules cover 40% of games
+  Top  5 rules cover 50% of games
+  Top  8 rules cover 60% of games
+  Top 12 rules cover 70% of games
+  Top 19 rules cover 80% of games
+  Top 34 rules cover 90% of games
+  Top 45 rules cover 95% of games
+  Top 56 rules cover 99% of games
+
+Interpretation:
+  • Rule #1 alone covers 28.8% of all game situations
+  • Top 5 rules cover 50% of cases (highly concentrated)
+  • Remaining 54 rules handle edge cases and complex situations
+
+================================================================================
+ACTION DISTRIBUTION
+================================================================================
+
+Which positions are chosen across all rules:
+
+Position                # Rules      # Games    % Games     Avg/Rule
+────────────────────────────────────────────────────────────────────────────────
+Center(4)                     1        1,039      28.8%       1039.0  ██████████████
+TopRight(2)                   7          590      16.3%         84.3  ████████
+BotRight(8)                  13          513      14.2%         39.5  ███████
+TopLeft(0)                   10          470      13.0%         47.0  ██████
+BotLeft(6)                    8          316       8.7%         39.5  ████
+MidLeft(3)                    4          206       5.7%         51.5  ██
+MidRight(5)                   5          178       4.9%         35.6  ██
+BotCenter(7)                  3          175       4.8%         58.3  ██
+TopCenter(1)                  8          126       3.5%         15.8  █
+
+Key Findings:
+  • Center(4) has only 1 rule but handles 28.8% of games
+  • This confirms center is the primary opening move
+  • Corners are chosen more frequently overall due to mid-game tactics
+
+================================================================================
+RULE COMPLEXITY ANALYSIS
+================================================================================
+
+Condition Statistics:
+  Average conditions per rule: 6.5
+  Minimum conditions: 5
+  Maximum conditions: 8
+  Median conditions: 6
+
+Distribution of Rule Complexity:
+# Conditions       # Rules    Distribution
+──────────────────────────────────────────────────
+ 5 conditions             8      13.6%     ██████
+ 6 conditions            23      39.0%     ███████████████████
+ 7 conditions            17      28.8%     ██████████████
+ 8 conditions            11      18.6%     █████████
+
+Interpretation:
+  • Most rules have 6 conditions (modal complexity)
+  • Relatively balanced complexity distribution
+  • No overly simple rules (min 5) suggests learning of nuanced strategy
+
+================================================================================
+STRATEGIC PATTERNS
+================================================================================
+
+Opening Strategy:
+  Rules that choose Center(4): 1
+  Total games: 1039 (28.8% of all)
+  Confirms: AI learned to prioritize center in opening
+
+Corner Strategy:
+  Rules that choose Corners: 38
+  Total games: 1889 (52.3% of all)
+
+Defensive Rules:
+  Rules checking opponent positions: 59
+  Percentage: 100.0%
+  Indicates: AI learned to react to opponent moves
+
+================================================================================
+COMPLETE RULE SET (ALL RULES)
+================================================================================
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #1 (Rank: 1/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 1,039 games (28.8% of total)
+Confidence: 100.0%
+Complexity: 8 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) != Opponent(O)
+  4. BotLeft(6) != Opponent(O)
+  5. TopLeft(0) != Yours(X)
+  6. MidRight(5) != Opponent(O)
+  7. MidLeft(3) != Opponent(O)
+  8. Center(4) != Yours(X)
+
+THEN:
+  → Place at Position 4 (Center(4))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #2 (Rank: 2/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 401 games (11.1% of total)
+Confidence: 100.0%
+Complexity: 8 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) != Opponent(O)
+  4. BotLeft(6) != Opponent(O)
+  5. TopLeft(0) != Yours(X)
+  6. MidRight(5) != Opponent(O)
+  7. MidLeft(3) != Opponent(O)
+  8. Center(4) == Yours(X)
+
+THEN:
+  → Place at Position 2 (TopRight(2))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #3 (Rank: 3/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 174 games (4.8% of total)
+Confidence: 100.0%
+Complexity: 5 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) != Opponent(O)
+  4. BotLeft(6) == Opponent(O)
+  5. BotRight(8) != Yours(X)
+
+THEN:
+  → Place at Position 8 (BotRight(8))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #4 (Rank: 4/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 149 games (4.1% of total)
+Confidence: 100.0%
+Complexity: 5 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) == Opponent(O)
+  3. MidLeft(3) != Yours(X)
+  4. MidLeft(3) != Opponent(O)
+  5. TopLeft(0) != Opponent(O)
+
+THEN:
+  → Place at Position 3 (MidLeft(3))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #5 (Rank: 5/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 142 games (3.9% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) != Opponent(O)
+  4. BotLeft(6) != Opponent(O)
+  5. TopLeft(0) != Yours(X)
+  6. MidRight(5) == Opponent(O)
+
+THEN:
+  → Place at Position 0 (TopLeft(0))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #6 (Rank: 6/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 132 games (3.7% of total)
+Confidence: 100.0%
+Complexity: 5 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) == Opponent(O)
+  4. BotCenter(7) != Yours(X)
+  5. BotLeft(6) != Opponent(O)
+
+THEN:
+  → Place at Position 7 (BotCenter(7))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #7 (Rank: 7/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 128 games (3.5% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) != Opponent(O)
+  4. BotLeft(6) != Opponent(O)
+  5. TopLeft(0) != Yours(X)
+  6. MidRight(5) != Opponent(O)
+  7. MidLeft(3) == Opponent(O)
+
+THEN:
+  → Place at Position 0 (TopLeft(0))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #8 (Rank: 8/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 124 games (3.4% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) != Opponent(O)
+  4. MidRight(5) != Opponent(O)
+  5. BotCenter(7) == Opponent(O)
+  6. MidRight(5) != Yours(X)
+
+THEN:
+  → Place at Position 6 (BotLeft(6))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #9 (Rank: 9/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 81 games (2.2% of total)
+Confidence: 100.0%
+Complexity: 5 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) == Opponent(O)
+  3. BotRight(8) != Yours(X)
+  4. BotRight(8) != Opponent(O)
+  5. TopLeft(0) != Opponent(O)
+
+THEN:
+  → Place at Position 8 (BotRight(8))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #10 (Rank: 10/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 72 games (2.0% of total)
+Confidence: 100.0%
+Complexity: 8 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) != Opponent(O)
+  4. BotLeft(6) != Opponent(O)
+  5. TopLeft(0) == Yours(X)
+  6. MidLeft(3) == Opponent(O)
+  7. TopCenter(1) != Opponent(O)
+  8. BotCenter(7) != Opponent(O)
+
+THEN:
+  → Place at Position 2 (TopRight(2))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #11 (Rank: 11/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 63 games (1.7% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) != Opponent(O)
+  4. MidRight(5) != Opponent(O)
+  5. BotCenter(7) != Opponent(O)
+  6. TopLeft(0) == Opponent(O)
+
+THEN:
+  → Place at Position 6 (BotLeft(6))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #12 (Rank: 12/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 62 games (1.7% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) != Opponent(O)
+  4. BotLeft(6) == Opponent(O)
+  5. BotRight(8) == Yours(X)
+  6. TopCenter(1) != Opponent(O)
+
+THEN:
+  → Place at Position 0 (TopLeft(0))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #13 (Rank: 13/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 59 games (1.6% of total)
+Confidence: 100.0%
+Complexity: 5 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) == Opponent(O)
+  3. BotRight(8) == Yours(X)
+  4. MidRight(5) != Opponent(O)
+  5. TopCenter(1) == Opponent(O)
+
+THEN:
+  → Place at Position 5 (MidRight(5))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #14 (Rank: 14/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 55 games (1.5% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) != Opponent(O)
+  4. BotLeft(6) != Opponent(O)
+  5. TopLeft(0) == Yours(X)
+  6. MidLeft(3) != Opponent(O)
+  7. BotRight(8) != Opponent(O)
+
+THEN:
+  → Place at Position 8 (BotRight(8))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #15 (Rank: 15/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 53 games (1.5% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) == Opponent(O)
+  3. MidLeft(3) == Yours(X)
+  4. MidRight(5) != Opponent(O)
+  5. BotLeft(6) != Opponent(O)
+  6. TopLeft(0) != Opponent(O)
+
+THEN:
+  → Place at Position 5 (MidRight(5))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #16 (Rank: 16/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 50 games (1.4% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) == Opponent(O)
+  4. TopLeft(0) != Yours(X)
+  5. TopLeft(0) != Opponent(O)
+  6. TopCenter(1) != Opponent(O)
+
+THEN:
+  → Place at Position 0 (TopLeft(0))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #17 (Rank: 17/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 42 games (1.2% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) == Opponent(O)
+  4. BotCenter(7) == Yours(X)
+  5. BotRight(8) != Opponent(O)
+  6. BotLeft(6) != Opponent(O)
+  7. MidLeft(3) != Opponent(O)
+
+THEN:
+  → Place at Position 2 (TopRight(2))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #18 (Rank: 18/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 38 games (1.1% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) != Opponent(O)
+  4. MidRight(5) != Opponent(O)
+  5. BotCenter(7) != Opponent(O)
+  6. TopLeft(0) != Opponent(O)
+
+THEN:
+  → Place at Position 5 (MidRight(5))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #19 (Rank: 19/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 37 games (1.0% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) == Opponent(O)
+  4. TopLeft(0) == Yours(X)
+  5. BotRight(8) == Opponent(O)
+  6. MidRight(5) != Opponent(O)
+
+THEN:
+  → Place at Position 6 (BotLeft(6))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #20 (Rank: 20/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 37 games (1.0% of total)
+Confidence: 100.0%
+Complexity: 5 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) == Opponent(O)
+  4. TopLeft(0) == Yours(X)
+  5. BotRight(8) != Opponent(O)
+
+THEN:
+  → Place at Position 8 (BotRight(8))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #21 (Rank: 21/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 30 games (0.8% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) == Opponent(O)
+  4. BotCenter(7) == Yours(X)
+  5. BotRight(8) == Opponent(O)
+  6. MidLeft(3) != Yours(X)
+
+THEN:
+  → Place at Position 3 (MidLeft(3))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #22 (Rank: 22/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 28 games (0.8% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) == Opponent(O)
+  3. MidLeft(3) != Yours(X)
+  4. MidLeft(3) == Opponent(O)
+  5. BotLeft(6) != Yours(X)
+  6. BotRight(8) != Yours(X)
+
+THEN:
+  → Place at Position 6 (BotLeft(6))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #23 (Rank: 23/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 27 games (0.7% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) == Opponent(O)
+  3. MidLeft(3) != Yours(X)
+  4. MidLeft(3) == Opponent(O)
+  5. BotLeft(6) == Yours(X)
+  6. BotRight(8) != Opponent(O)
+
+THEN:
+  → Place at Position 8 (BotRight(8))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #24 (Rank: 24/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 24 games (0.7% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) != Opponent(O)
+  4. BotLeft(6) == Opponent(O)
+  5. BotRight(8) == Yours(X)
+  6. TopCenter(1) == Opponent(O)
+
+THEN:
+  → Place at Position 2 (TopRight(2))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #25 (Rank: 25/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 24 games (0.7% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) == Opponent(O)
+  3. BotRight(8) != Yours(X)
+  4. BotRight(8) == Opponent(O)
+  5. TopCenter(1) != Opponent(O)
+  6. BotCenter(7) != Yours(X)
+  7. TopLeft(0) != Yours(X)
+
+THEN:
+  → Place at Position 7 (BotCenter(7))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #26 (Rank: 26/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 23 games (0.6% of total)
+Confidence: 100.0%
+Complexity: 5 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) == Opponent(O)
+  4. BotCenter(7) != Yours(X)
+  5. BotLeft(6) == Opponent(O)
+
+THEN:
+  → Place at Position 2 (TopRight(2))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #27 (Rank: 27/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 23 games (0.6% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) == Opponent(O)
+  4. BotCenter(7) == Yours(X)
+  5. BotRight(8) != Opponent(O)
+  6. BotLeft(6) == Opponent(O)
+
+THEN:
+  → Place at Position 1 (TopCenter(1))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #28 (Rank: 28/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 23 games (0.6% of total)
+Confidence: 100.0%
+Complexity: 8 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) == Opponent(O)
+  4. TopLeft(0) != Yours(X)
+  5. TopLeft(0) != Opponent(O)
+  6. TopCenter(1) == Opponent(O)
+  7. BotRight(8) != Yours(X)
+  8. BotRight(8) != Opponent(O)
+
+THEN:
+  → Place at Position 8 (BotRight(8))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #29 (Rank: 29/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 23 games (0.6% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) == Opponent(O)
+  4. TopLeft(0) == Yours(X)
+  5. BotRight(8) == Opponent(O)
+  6. MidRight(5) == Opponent(O)
+
+THEN:
+  → Place at Position 1 (TopCenter(1))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #30 (Rank: 30/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 22 games (0.6% of total)
+Confidence: 100.0%
+Complexity: 8 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) == Opponent(O)
+  3. MidLeft(3) == Yours(X)
+  4. MidRight(5) != Opponent(O)
+  5. BotLeft(6) != Opponent(O)
+  6. TopLeft(0) == Opponent(O)
+  7. BotRight(8) != Opponent(O)
+  8. BotCenter(7) != Opponent(O)
+
+THEN:
+  → Place at Position 8 (BotRight(8))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #31 (Rank: 31/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 19 games (0.5% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) == Opponent(O)
+  3. MidLeft(3) == Yours(X)
+  4. MidRight(5) != Opponent(O)
+  5. BotLeft(6) == Opponent(O)
+  6. BotRight(8) != Yours(X)
+  7. BotCenter(7) != Yours(X)
+
+THEN:
+  → Place at Position 7 (BotCenter(7))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #32 (Rank: 32/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 19 games (0.5% of total)
+Confidence: 100.0%
+Complexity: 8 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) == Opponent(O)
+  4. BotCenter(7) == Yours(X)
+  5. BotRight(8) != Opponent(O)
+  6. BotLeft(6) != Opponent(O)
+  7. MidLeft(3) == Opponent(O)
+  8. BotRight(8) != Yours(X)
+
+THEN:
+  → Place at Position 8 (BotRight(8))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #33 (Rank: 33/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 18 games (0.5% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) == Opponent(O)
+  3. MidLeft(3) != Yours(X)
+  4. MidLeft(3) != Opponent(O)
+  5. TopLeft(0) == Opponent(O)
+  6. BotRight(8) != Yours(X)
+
+THEN:
+  → Place at Position 8 (BotRight(8))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #34 (Rank: 34/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 18 games (0.5% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) == Opponent(O)
+  3. MidLeft(3) == Yours(X)
+  4. MidRight(5) == Opponent(O)
+  5. BotRight(8) != Yours(X)
+  6. TopLeft(0) != Yours(X)
+
+THEN:
+  → Place at Position 8 (BotRight(8))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #35 (Rank: 35/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 18 games (0.5% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) == Opponent(O)
+  3. MidLeft(3) == Yours(X)
+  4. MidRight(5) != Opponent(O)
+  5. BotLeft(6) == Opponent(O)
+  6. BotRight(8) == Yours(X)
+  7. BotCenter(7) != Opponent(O)
+
+THEN:
+  → Place at Position 5 (MidRight(5))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #36 (Rank: 36/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 18 games (0.5% of total)
+Confidence: 100.0%
+Complexity: 8 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) != Opponent(O)
+  4. BotLeft(6) != Opponent(O)
+  5. TopLeft(0) == Yours(X)
+  6. MidLeft(3) == Opponent(O)
+  7. TopCenter(1) == Opponent(O)
+  8. BotLeft(6) != Yours(X)
+
+THEN:
+  → Place at Position 6 (BotLeft(6))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #37 (Rank: 37/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 18 games (0.5% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) == Opponent(O)
+  3. BotRight(8) != Yours(X)
+  4. BotRight(8) == Opponent(O)
+  5. TopCenter(1) != Opponent(O)
+  6. BotCenter(7) != Yours(X)
+  7. TopLeft(0) == Yours(X)
+
+THEN:
+  → Place at Position 1 (TopCenter(1))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #38 (Rank: 38/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 18 games (0.5% of total)
+Confidence: 100.0%
+Complexity: 5 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) == Opponent(O)
+  3. BotRight(8) == Yours(X)
+  4. MidRight(5) == Opponent(O)
+  5. TopLeft(0) != Opponent(O)
+
+THEN:
+  → Place at Position 0 (TopLeft(0))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #39 (Rank: 39/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 18 games (0.5% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) != Opponent(O)
+  4. MidRight(5) == Opponent(O)
+  5. BotRight(8) != Opponent(O)
+  6. BotCenter(7) == Opponent(O)
+  7. TopLeft(0) != Yours(X)
+
+THEN:
+  → Place at Position 0 (TopLeft(0))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #40 (Rank: 40/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 17 games (0.5% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) != Opponent(O)
+  4. MidRight(5) == Opponent(O)
+  5. BotRight(8) == Opponent(O)
+  6. TopLeft(0) == Yours(X)
+
+THEN:
+  → Place at Position 6 (BotLeft(6))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #41 (Rank: 41/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 16 games (0.4% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) == Opponent(O)
+  4. TopLeft(0) != Yours(X)
+  5. TopLeft(0) != Opponent(O)
+  6. TopCenter(1) == Opponent(O)
+  7. BotRight(8) == Yours(X)
+
+THEN:
+  → Place at Position 0 (TopLeft(0))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #42 (Rank: 42/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 16 games (0.4% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) != Opponent(O)
+  4. MidRight(5) == Opponent(O)
+  5. BotRight(8) != Opponent(O)
+  6. BotCenter(7) != Opponent(O)
+  7. BotRight(8) != Yours(X)
+
+THEN:
+  → Place at Position 8 (BotRight(8))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #43 (Rank: 43/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 15 games (0.4% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) == Opponent(O)
+  3. MidLeft(3) == Yours(X)
+  4. MidRight(5) == Opponent(O)
+  5. BotRight(8) != Yours(X)
+  6. TopLeft(0) == Yours(X)
+  7. BotLeft(6) != Opponent(O)
+
+THEN:
+  → Place at Position 6 (BotLeft(6))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #44 (Rank: 44/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 15 games (0.4% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) == Opponent(O)
+  3. MidLeft(3) == Yours(X)
+  4. MidRight(5) == Opponent(O)
+  5. BotRight(8) == Yours(X)
+  6. TopLeft(0) != Opponent(O)
+
+THEN:
+  → Place at Position 0 (TopLeft(0))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #45 (Rank: 45/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 15 games (0.4% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) != Opponent(O)
+  4. BotLeft(6) != Opponent(O)
+  5. TopLeft(0) == Yours(X)
+  6. MidLeft(3) != Opponent(O)
+  7. BotRight(8) == Opponent(O)
+
+THEN:
+  → Place at Position 2 (TopRight(2))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #46 (Rank: 46/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 15 games (0.4% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) == Opponent(O)
+  3. BotRight(8) != Yours(X)
+  4. BotRight(8) == Opponent(O)
+  5. TopCenter(1) == Opponent(O)
+  6. MidRight(5) == Yours(X)
+  7. MidLeft(3) != Opponent(O)
+
+THEN:
+  → Place at Position 3 (MidLeft(3))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #47 (Rank: 47/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 14 games (0.4% of total)
+Confidence: 100.0%
+Complexity: 8 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) == Opponent(O)
+  3. MidLeft(3) == Yours(X)
+  4. MidRight(5) != Opponent(O)
+  5. BotLeft(6) == Opponent(O)
+  6. BotRight(8) != Yours(X)
+  7. BotCenter(7) == Yours(X)
+  8. TopCenter(1) != Opponent(O)
+
+THEN:
+  → Place at Position 1 (TopCenter(1))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #48 (Rank: 48/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 14 games (0.4% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) == Opponent(O)
+  4. TopLeft(0) != Yours(X)
+  5. TopLeft(0) == Opponent(O)
+  6. BotRight(8) == Yours(X)
+
+THEN:
+  → Place at Position 6 (BotLeft(6))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #49 (Rank: 49/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 13 games (0.4% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) == Opponent(O)
+  3. MidLeft(3) != Yours(X)
+  4. MidLeft(3) == Opponent(O)
+  5. BotLeft(6) != Yours(X)
+  6. BotRight(8) == Yours(X)
+
+THEN:
+  → Place at Position 1 (TopCenter(1))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #50 (Rank: 50/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 13 games (0.4% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) == Opponent(O)
+  4. BotCenter(7) == Yours(X)
+  5. BotRight(8) == Opponent(O)
+  6. MidLeft(3) == Yours(X)
+  7. TopCenter(1) != Opponent(O)
+
+THEN:
+  → Place at Position 1 (TopCenter(1))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #51 (Rank: 51/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 13 games (0.4% of total)
+Confidence: 100.0%
+Complexity: 8 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) != Opponent(O)
+  4. BotLeft(6) != Opponent(O)
+  5. TopLeft(0) == Yours(X)
+  6. MidLeft(3) == Opponent(O)
+  7. TopCenter(1) == Opponent(O)
+  8. BotLeft(6) == Yours(X)
+
+THEN:
+  → Place at Position 2 (TopRight(2))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #52 (Rank: 52/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 13 games (0.4% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) == Opponent(O)
+  4. TopLeft(0) != Yours(X)
+  5. TopLeft(0) == Opponent(O)
+  6. BotRight(8) != Yours(X)
+
+THEN:
+  → Place at Position 8 (BotRight(8))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #53 (Rank: 53/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 12 games (0.3% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) == Opponent(O)
+  3. BotRight(8) != Yours(X)
+  4. BotRight(8) == Opponent(O)
+  5. TopCenter(1) != Opponent(O)
+  6. BotCenter(7) == Yours(X)
+  7. MidRight(5) == Opponent(O)
+
+THEN:
+  → Place at Position 1 (TopCenter(1))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #54 (Rank: 54/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 12 games (0.3% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) != Opponent(O)
+  4. MidRight(5) != Opponent(O)
+  5. BotCenter(7) == Opponent(O)
+  6. MidRight(5) == Yours(X)
+
+THEN:
+  → Place at Position 3 (MidLeft(3))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #55 (Rank: 55/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 11 games (0.3% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) != Opponent(O)
+  4. MidRight(5) == Opponent(O)
+  5. BotRight(8) == Opponent(O)
+  6. TopLeft(0) != Yours(X)
+  7. TopLeft(0) != Opponent(O)
+
+THEN:
+  → Place at Position 0 (TopLeft(0))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #56 (Rank: 56/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 10 games (0.3% of total)
+Confidence: 100.0%
+Complexity: 7 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) == Opponent(O)
+  4. BotCenter(7) == Yours(X)
+  5. BotRight(8) == Opponent(O)
+  6. MidLeft(3) == Yours(X)
+  7. TopCenter(1) == Opponent(O)
+
+THEN:
+  → Place at Position 5 (MidRight(5))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #57 (Rank: 57/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 10 games (0.3% of total)
+Confidence: 100.0%
+Complexity: 8 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) != Yours(X)
+  2. TopRight(2) != Opponent(O)
+  3. TopLeft(0) != Opponent(O)
+  4. BotLeft(6) != Opponent(O)
+  5. TopLeft(0) == Yours(X)
+  6. MidLeft(3) == Opponent(O)
+  7. TopCenter(1) != Opponent(O)
+  8. BotCenter(7) == Opponent(O)
+
+THEN:
+  → Place at Position 8 (BotRight(8))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #58 (Rank: 58/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 10 games (0.3% of total)
+Confidence: 100.0%
+Complexity: 6 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) == Opponent(O)
+  3. BotRight(8) != Yours(X)
+  4. BotRight(8) != Opponent(O)
+  5. TopLeft(0) == Opponent(O)
+  6. MidRight(5) == Opponent(O)
+
+THEN:
+  → Place at Position 1 (TopCenter(1))
+
+────────────────────────────────────────────────────────────────────────────────
+RULE #59 (Rank: 59/59)
+────────────────────────────────────────────────────────────────────────────────
+Frequency: 10 games (0.3% of total)
+Confidence: 100.0%
+Complexity: 8 conditions
+
+IF ALL of the following are true:
+  1. TopRight(2) == Yours(X)
+  2. BotLeft(6) != Opponent(O)
+  3. MidLeft(3) == Opponent(O)
+  4. TopLeft(0) != Yours(X)
+  5. TopLeft(0) != Opponent(O)
+  6. TopCenter(1) == Opponent(O)
+  7. BotRight(8) != Yours(X)
+  8. BotRight(8) == Opponent(O)
+
+THEN:
+  → Place at Position 0 (TopLeft(0))
+
+================================================================================
+FEATURE IMPORTANCE vs STRATEGIC IMPORTANCE
+================================================================================
+
+Important Distinction:
+
+1. FEATURE IMPORTANCE (from sklearn):
+   • Measures how often a position is CHECKED during decision-making
+   • TopLeft(0) has high importance because it's checked in many rules
+   • Center(4) has LOW importance because it's rarely checked
+
+2. STRATEGIC IMPORTANCE (from our analysis):
+   • Measures how often a position is CHOSEN as the action
+   • Center(4) is chosen in 28.8% of games (highest!)
+   • TopLeft(0) is chosen in 13.0% of games
+
+Conclusion:
+   • Feature importance ≠ Strategic value
+   • "Is position X occupied?" (feature) vs "Should I take position X?" (action)
+   • The AI DOES prioritize center for opening, despite low feature importance
+        
+
+================================================================================
+CONCLUSIONS AND RECOMMENDATIONS
+================================================================================
+
+Strengths:
+  ✓ Successfully learned optimal opening (center prioritization)
+  ✓ High performance retention from neural network to decision tree (97.7%)
+  ✓ All rules have 100% confidence (deterministic, interpretable)
+  ✓ Learned defensive patterns (all rules check opponent positions)
+
+Potential Improvements:
+  • 59 rules may be more than necessary (possible overfitting)
+  • Could experiment with max_leaves parameter to get simpler tree
+  • Consider pruning low-frequency rules (those used <10 times)
+
+Interpretability Achievement:
+  • Successfully distilled DQN (black-box) into 59 IF-THEN rules
+  • Top 5 rules explain 50% of behavior
+  • Rules are human-readable and verifiable
+  • Can be audited for fairness, safety, compliance
+
+Research Contributions:
+  • Demonstrated VIPER algorithm on TicTacToe domain
+  • Showed trade-off: 2.3% performance loss for full interpretability
+  • Revealed feature importance ≠ strategic importance insight
+        
+
+================================================================================
+END OF REPORT
+================================================================================

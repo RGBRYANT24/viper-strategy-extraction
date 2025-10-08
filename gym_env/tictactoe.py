@@ -59,66 +59,70 @@ class TicTacToeEnv(gym.Env):
             [0, 4, 8], [2, 4, 6]              # 对角线
         ]
         
-    def reset(self):
+    def reset(self, seed=None, options=None):
         """重置环境到初始状态"""
+        if seed is not None:
+            np.random.seed(seed)
+
         self.board = np.zeros(9, dtype=np.float32)
         self.done = False
         self.winner = None
-        return self.board.copy()
+        return self.board.copy(), {}
     
     def step(self, action):
         """
         执行一步动作
-        
+
         Args:
             action: 0-8 的整数，表示落子位置
-            
+
         Returns:
             observation: 新的棋盘状态
             reward: 奖励值
-            done: 是否结束
+            terminated: 是否因游戏结束而终止
+            truncated: 是否因时间限制而截断（总是False）
             info: 额外信息
         """
         if self.done:
-            return self.board.copy(), 0, True, {'error': 'game_already_done'}
-        
+            return self.board.copy(), 0, True, False, {'error': 'game_already_done'}
+
         # 检查动作是否合法
         if not self._is_valid_action(action):
             # 非法移动，游戏结束并给予惩罚
             self.done = True
-            return self.board.copy(), -10, True, {'illegal_move': True}
-        
+            return self.board.copy(), -10, True, False, {'illegal_move': True}
+
         # 玩家 X 落子
         self.board[action] = 1
-        
+
         # 检查玩家是否获胜
         if self._check_winner(1):
             self.done = True
             self.winner = 1
-            return self.board.copy(), 1, True, {'winner': 'X'}
-        
+            return self.board.copy(), 1, True, False, {'winner': 'X'}
+
         # 检查是否平局
         if not self._has_empty_cells():
             self.done = True
-            return self.board.copy(), 0, True, {'draw': True}
-        
+            return self.board.copy(), 0, True, False, {'draw': True}
+
         # 对手 O 随机落子
         opponent_action = self._opponent_move()
         self.board[opponent_action] = -1
-        
+
         # 检查对手是否获胜
         if self._check_winner(-1):
             self.done = True
             self.winner = -1
-            return self.board.copy(), -1, True, {'winner': 'O'}
-        
+            return self.board.copy(), -1, True, False, {'winner': 'O'}
+
         # 再次检查平局
         if not self._has_empty_cells():
             self.done = True
-            return self.board.copy(), 0, True, {'draw': True}
-        
+            return self.board.copy(), 0, True, False, {'draw': True}
+
         # 游戏继续
-        return self.board.copy(), 0, False, {}
+        return self.board.copy(), 0, False, False, {}
     
     def _is_valid_action(self, action):
         """检查动作是否合法"""
@@ -208,27 +212,7 @@ class TicTacToeSymmetricEnv(TicTacToeEnv):
 
 
 # ============ Gym 注册 ============
-# 将以下代码添加到 envs/__init__.py 或 main.py
-
-try:
-    from gymnasium.envs.registration import register
-
-    register(
-        id='TicTacToe-v0',
-        entry_point='gym_env.tictactoe:TicTacToeEnv',
-        max_episode_steps=9,  # 最多 9 步
-    )
-
-    register(
-        id='TicTacToeSymmetric-v0',
-        entry_point='gym_env.tictactoe:TicTacToeSymmetricEnv',
-        max_episode_steps=9,
-    )
-
-    print("✅ TicTacToe environments registered successfully!")
-
-except Exception as e:
-    print(f"⚠️  Environment registration failed: {e}")
+# 注册已经在 gym_env/__init__.py 中完成
 
 
 # ============ 测试代码 ============
@@ -239,27 +223,27 @@ if __name__ == "__main__":
     
     # 测试 1: 基本功能
     print("\n=== Test 1: Basic Functionality ===")
-    obs = env.reset()
+    obs, info = env.reset()
     print(f"Initial state: {obs}")
     env.render()
-    
+
     # 测试 2: 完整游戏
     print("\n=== Test 2: Full Game ===")
-    obs = env.reset()
-    done = False
+    obs, info = env.reset()
+    terminated = False
     step_count = 0
-    
-    while not done and step_count < 10:
+
+    while not terminated and step_count < 10:
         # 随机选择合法动作
         legal_actions = np.where(obs == 0)[0]
         if len(legal_actions) == 0:
             break
         action = np.random.choice(legal_actions)
 
-        obs, reward, done, info = env.step(action)
+        obs, reward, terminated, truncated, info = env.step(action)
         print(f"Step {step_count + 1}: action={action}, reward={reward}")
         env.render()
 
         step_count += 1
 
-    print(f"\nFinal game state - Done: {done}, Steps: {step_count}")
+    print(f"\nFinal game state - Terminated: {terminated}, Steps: {step_count}")

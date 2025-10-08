@@ -271,7 +271,8 @@ def get_loss(env, model: BaseAlgorithm, obs):
     """
     if isinstance(model, DQN):
         # For q-learners it is the difference between the best and worst q value
-        q_values = model.q_net(torch.from_numpy(obs)).detach().numpy()
+        device = model.q_net.device if hasattr(model.q_net, 'device') else next(model.q_net.parameters()).device
+        q_values = model.q_net(torch.from_numpy(obs).to(device)).detach().cpu().numpy()
         # q_values n_env x n_actions
         return q_values.max(axis=1) - q_values.min(axis=1)
     if isinstance(model, PPO):
@@ -282,12 +283,13 @@ def get_loss(env, model: BaseAlgorithm, obs):
                           gym.spaces.Discrete), "Only discrete action spaces supported for loss function"
         possible_actions = np.arange(env.action_space.n)
 
-        obs = torch.from_numpy(obs)
+        device = model.policy.device
+        obs = torch.from_numpy(obs).to(device)
         log_probs = []
         for action in possible_actions:
-            action = torch.from_numpy(np.array([action])).repeat(obs.shape[0])
+            action = torch.from_numpy(np.array([action])).repeat(obs.shape[0]).to(device)
             _, log_prob, _ = model.policy.evaluate_actions(obs, action)
-            log_probs.append(log_prob.detach().numpy().flatten())
+            log_probs.append(log_prob.detach().cpu().numpy().flatten())
 
         log_probs = np.array(log_probs).T
         return log_probs.max(axis=1) - log_probs.min(axis=1)
