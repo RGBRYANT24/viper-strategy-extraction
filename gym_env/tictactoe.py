@@ -32,32 +32,45 @@ class TicTacToeEnv(gym.Env):
     """
     
     metadata = {'render.modes': ['human', 'ansi']}
-    
-    def __init__(self):
+
+    def __init__(self, opponent_type='random', minmax_depth=9):
+        """
+        Args:
+            opponent_type: 对手类型，可选 'random' 或 'minmax'
+            minmax_depth: MinMax搜索深度（仅当opponent_type='minmax'时有效）
+        """
         super().__init__()
-        
+
         # 状态空间: 9个位置，每个位置 -1, 0, 或 1
         self.observation_space = spaces.Box(
-            low=-1.0, 
-            high=1.0, 
-            shape=(9,), 
+            low=-1.0,
+            high=1.0,
+            shape=(9,),
             dtype=np.float32
         )
-        
+
         # 动作空间: 9个可能的位置
         self.action_space = spaces.Discrete(9)
-        
+
         # 游戏状态
         self.board = None
         self.done = False
         self.winner = None
-        
+
+        # 对手设置
+        self.opponent_type = opponent_type
+        self.minmax_depth = minmax_depth
+
         # 获胜组合（行、列、对角线）
         self.win_combinations = [
             [0, 1, 2], [3, 4, 5], [6, 7, 8],  # 行
             [0, 3, 6], [1, 4, 7], [2, 5, 8],  # 列
             [0, 4, 8], [2, 4, 6]              # 对角线
         ]
+
+        # 调试计数器
+        self.step_count = 0
+        self._debug_print_interval = 100
         
     def reset(self, seed=None, options=None):
         """重置环境到初始状态"""
@@ -83,6 +96,11 @@ class TicTacToeEnv(gym.Env):
             truncated: 是否因时间限制而截断（总是False）
             info: 额外信息
         """
+        # 调试输出
+        self.step_count += 1
+        if self.step_count % self._debug_print_interval == 0:
+            print(f"[ENV DEBUG] Step {self.step_count} (opponent: {self.opponent_type})")
+
         if self.done:
             return self.board.copy(), 0, True, False, {'error': 'game_already_done'}
 
@@ -144,9 +162,104 @@ class TicTacToeEnv(gym.Env):
         return np.where(self.board == 0)[0]
     
     def _opponent_move(self):
-        """对手（随机策略）选择动作"""
-        legal_actions = self._get_legal_actions()
-        return np.random.choice(legal_actions)
+        """对手选择动作（根据opponent_type）"""
+        if self.opponent_type == 'minmax':
+            # 使用副本避免修改原始board
+            return self._minmax_move(self.board.copy(), -1)
+        else:  # random
+            legal_actions = self._get_legal_actions()
+            return np.random.choice(legal_actions)
+
+    def _minmax_move(self, board, player):
+        """使用MinMax算法选择最优动作"""
+        best_score = float('-inf')
+        best_action = None
+        legal_actions = np.where(board == 0)[0]
+
+        if len(legal_actions) == 0:
+            return 0
+
+        # 早期游戏阶段：如果中心空，直接占中心（启发式优化）
+        if len(legal_actions) == 9:  # 第一步
+            return 4  # 中心位置
+        elif len(legal_actions) >= 7:  # 前两步
+            if 4 in legal_actions:
+                return 4  # 优先中心
+            corners = [0, 2, 6, 8]
+            available_corners = [c for c in corners if c in legal_actions]
+            if available_corners:
+                return available_corners[0]
+
+        for action in legal_actions:
+            board[action] = player
+            score = self._minimax(board, 0, False, player, float('-inf'), float('inf'))
+            board[action] = 0
+
+            if score > best_score:
+                best_score = score
+                best_action = action
+
+            # 如果找到必胜策略，直接返回
+            if best_score >= 10:
+                break
+
+        return best_action if best_action is not None else legal_actions[0]
+
+    def _minimax(self, board, depth, is_maximizing, player, alpha, beta):
+        """MinMax算法核心（带Alpha-Beta剪枝）"""
+        winner = self._check_winner_state(board)
+        if winner == player:
+            return 10 - depth  # 越快赢越好
+        elif winner == -player:
+            return -10 + depth  # 越晚输越好
+        elif winner == 0:  # 平局
+            return 0
+
+        if depth >= self.minmax_depth:
+            return 0
+
+        legal_actions = np.where(board == 0)[0]
+        if len(legal_actions) == 0:
+            return 0
+
+        if is_maximizing:
+            max_eval = float('-inf')
+            for action in legal_actions:
+                board[action] = player
+                eval_score = self._minimax(board, depth + 1, False, player, alpha, beta)
+                board[action] = 0
+                max_eval = max(max_eval, eval_score)
+                alpha = max(alpha, eval_score)
+                if beta <= alpha:
+                    break  # Beta剪枝
+            return max_eval
+        else:
+            min_eval = float('inf')
+            for action in legal_actions:
+                board[action] = -player
+                eval_score = self._minimax(board, depth + 1, True, player, alpha, beta)
+                board[action] = 0
+                min_eval = min(min_eval, eval_score)
+                beta = min(beta, eval_score)
+                if beta <= alpha:
+                    break  # Alpha剪枝
+            return min_eval
+
+    def _check_winner_state(self, board):
+        """
+        检查游戏状态
+        返回: 1=X赢, -1=O赢, 0=平局, None=游戏未结束
+        """
+        for combo in self.win_combinations:
+            if all(board[pos] == 1 for pos in combo):
+                return 1
+            elif all(board[pos] == -1 for pos in combo):
+                return -1
+
+        if np.any(board == 0):
+            return None  # 游戏未结束
+
+        return 0  # 平局
     
     def render(self, mode='human'):
         """渲染当前棋盘状态"""
