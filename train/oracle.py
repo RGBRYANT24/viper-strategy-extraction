@@ -71,6 +71,31 @@ ENV_TO_MODEL = {
                 'net_arch': [64, dict(pi=[128, 64], vf=[64, 64])]
             }
         }
+    },
+    'TicTacToe-v0': {
+        'model': DQN,
+        'kwargs': {
+            'policy': 'MlpPolicy',
+            'learning_rate': 1e-4,
+            'buffer_size': 100_000,
+            'learning_starts': 1000,
+            'batch_size': 64,
+            'tau': 1.0,
+            'gamma': 0.99,
+            'train_freq': 4,
+            'gradient_steps': 1,
+            'target_update_interval': 100,
+            'exploration_fraction': 0.2,
+            'exploration_initial_eps': 1.0,
+            'exploration_final_eps': 0.05,
+            'policy_kwargs': {
+                'net_arch': [128, 128]
+            }
+        },
+        'kwargs_resume': {
+            'exploration_final_eps': 0.05,
+            'exploration_initial_eps': 0.1
+        }
     }
 }
 

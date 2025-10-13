@@ -36,6 +36,10 @@ if __name__ == "__main__":
     parent_parser.add_argument(
         "--log-prefix", type=str, default="",
         help="An optional prefix to add to log file names.")
+    parent_parser.add_argument(
+        "--tictactoe-opponent", type=str, default="random",
+        choices=['random', 'minmax'],
+        help="TicTacToe opponent type: 'random' or 'minmax' (default: random)")
 
 
     # Env

@@ -16,6 +16,50 @@ from test.evaluate import evaluate_policy
 from train.oracle import get_model_cls
 
 
+def spaces_are_compatible(space1, space2):
+    """
+    Check if two spaces are compatible (have same properties) even if from different libraries
+    """
+    # Get base type names (handle both CompatibleBox and Box)
+    type1_name = type(space1).__name__
+    type2_name = type(space2).__name__
+
+    # Normalize type names (CompatibleBox -> Box, CompatibleDiscrete -> Discrete)
+    if type1_name.startswith('Compatible'):
+        type1_name = type1_name.replace('Compatible', '')
+    if type2_name.startswith('Compatible'):
+        type2_name = type2_name.replace('Compatible', '')
+
+    # Check if they're the same base type
+    if type1_name != type2_name:
+        print(f"DEBUG: Type mismatch: {type1_name} != {type2_name}")
+        return False
+
+    space_type = type1_name
+
+    if space_type == 'Box':
+        compatible = (np.array_equal(space1.low, space2.low) and
+                     np.array_equal(space1.high, space2.high) and
+                     space1.shape == space2.shape and
+                     space1.dtype == space2.dtype)
+        if not compatible:
+            print(f"DEBUG Box spaces not compatible:")
+            print(f"  low match: {np.array_equal(space1.low, space2.low)}")
+            print(f"  high match: {np.array_equal(space1.high, space2.high)}")
+            print(f"  shape match: {space1.shape == space2.shape} ({space1.shape} vs {space2.shape})")
+            print(f"  dtype match: {space1.dtype == space2.dtype} ({space1.dtype} vs {space2.dtype})")
+        return compatible
+    elif space_type == 'Discrete':
+        return space1.n == space2.n
+    elif space_type == 'MultiBinary':
+        return space1.n == space2.n
+    elif space_type == 'MultiDiscrete':
+        return np.array_equal(space1.nvec, space2.nvec)
+    else:
+        # For other types, try direct comparison
+        return space1 == space2
+
+
 def train_viper(args):
     print(f"Training Viper on {args.env_name}")
 
@@ -60,11 +104,34 @@ def load_oracle_env(args):
         warnings.simplefilter("ignore")
         env = make_env(args)
         model_cls, _ = get_model_cls(args)
-        oracle = model_cls.load(get_oracle_path(args), env=env)
-        oracle.verbose = args.verbose
-        # SB will add additional wrappers to the env
-        env = oracle.env
-        return env, oracle
+
+        # Patch at the module level where it's actually imported
+        import stable_baselines3.common.base_class as base_class_module
+
+        def patched_check(env, observation_space, action_space):
+            """Patched version that handles gymnasium/gym space compatibility"""
+            if not spaces_are_compatible(observation_space, env.observation_space):
+                raise ValueError(
+                    f"Observation spaces do not match: {observation_space} != {env.observation_space}"
+                )
+            if not spaces_are_compatible(action_space, env.action_space):
+                raise ValueError(
+                    f"Action spaces do not match: {action_space} != {env.action_space}"
+                )
+
+        # Save original and patch
+        original_check = base_class_module.check_for_correct_spaces
+        base_class_module.check_for_correct_spaces = patched_check
+
+        try:
+            oracle = model_cls.load(get_oracle_path(args), env=env)
+            oracle.verbose = args.verbose
+            # SB will add additional wrappers to the env
+            env = oracle.env
+            return env, oracle
+        finally:
+            # Restore original
+            base_class_module.check_for_correct_spaces = original_check
 
 
 def sample_trajectory(args, policy, beta):
@@ -94,7 +161,13 @@ def sample_trajectory(args, policy, beta):
         else:
             oracle_action = oracle.predict(obs, deterministic=True)[0]
 
-        next_obs, reward, done, info = env.step(action)
+        # Handle both old (4 values) and new (5 values) step API
+        step_result = env.step(action)
+        if len(step_result) == 5:
+            next_obs, reward, terminated, truncated, info = step_result
+            done = terminated or truncated
+        else:
+            next_obs, reward, done, info = step_result
 
         if args.render:
             env.render()
@@ -122,7 +195,10 @@ def get_loss(env, model: BaseAlgorithm, obs):
     """
     if isinstance(model, DQN):
         # For q-learners it is the difference between the best and worst q value
-        q_values = model.q_net(torch.from_numpy(obs)).detach().numpy()
+        obs_tensor = torch.from_numpy(obs)
+        # Move tensor to the same device as the model
+        obs_tensor = obs_tensor.to(model.device)
+        q_values = model.q_net(obs_tensor).detach().cpu().numpy()
         # q_values n_env x n_actions
         return q_values.max(axis=1) - q_values.min(axis=1)
     if isinstance(model, PPO):
@@ -133,12 +209,12 @@ def get_loss(env, model: BaseAlgorithm, obs):
                           gym.spaces.Discrete), "Only discrete action spaces supported for loss function"
         possible_actions = np.arange(env.action_space.n)
 
-        obs = torch.from_numpy(obs)
+        obs_tensor = torch.from_numpy(obs).to(model.device)
         log_probs = []
         for action in possible_actions:
-            action = torch.from_numpy(np.array([action])).repeat(obs.shape[0])
-            _, log_prob, _ = model.policy.evaluate_actions(obs, action)
-            log_probs.append(log_prob.detach().numpy().flatten())
+            action_tensor = torch.from_numpy(np.array([action])).repeat(obs_tensor.shape[0]).to(model.device)
+            _, log_prob, _ = model.policy.evaluate_actions(obs_tensor, action_tensor)
+            log_probs.append(log_prob.detach().cpu().numpy().flatten())
 
         log_probs = np.array(log_probs).T
         return log_probs.max(axis=1) - log_probs.min(axis=1)
