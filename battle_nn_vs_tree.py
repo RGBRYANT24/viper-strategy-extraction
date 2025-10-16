@@ -258,15 +258,18 @@ class DecisionTreePlayer:
 
 class NeuralNetPlayer:
     """神经网络玩家"""
-    def __init__(self, model_path, model_type='auto'):
+    def __init__(self, model_path, model_type='auto', debug=False):
         """
         Args:
             model_path: 模型文件路径
             model_type: 模型类型 ('auto', 'PPO', 'DQN', 'A2C')
                        'auto' 会自动尝试检测模型类型
+            debug: 是否启用调试输出
         """
         self.model = None
         self.model_type = model_type
+        self.debug = debug
+        self.predict_count = 0
 
         if model_type == 'auto':
             # 自动检测模型类型
@@ -306,9 +309,39 @@ class NeuralNetPlayer:
         # 如果都失败了，抛出错误
         raise ValueError(f"无法加载模型 {model_path}。最后的错误: {last_error}")
 
-    def predict(self, obs):
-        """预测动作"""
-        action, _ = self.model.predict(obs, deterministic=True)
+    def predict(self, obs, player_id=1):
+        """
+        预测动作
+
+        Args:
+            obs: 棋盘状态（从当前环境视角）
+            player_id: 当前玩家ID（1=X, -1=O），用于转换视角
+
+        Returns:
+            action: 预测的动作
+        """
+        # 重要：神经网络训练时总是从X的视角（自己=1，对手=-1）
+        # 如果现在是O玩家，需要翻转棋盘视角
+        if player_id == -1:
+            # 翻转视角：X变成对手(-1)，O变成自己(1)
+            obs_transformed = -obs
+        else:
+            obs_transformed = obs
+
+        action, _ = self.model.predict(obs_transformed, deterministic=True)
+
+        # 调试输出前几次预测
+        self.predict_count += 1
+        if self.debug and self.predict_count <= 5:
+            print(f"\n[NN DEBUG {self.predict_count}]")
+            print(f"  玩家ID: {player_id}")
+            print(f"  原始棋盘: {obs}")
+            if player_id == -1:
+                print(f"  转换后棋盘: {obs_transformed}")
+            print(f"  预测动作: {action}, 类型: {type(action)}")
+            print(f"  合法动作: {np.where(obs == 0)[0]}")
+            print(f"  动作是否合法: {action in np.where(obs == 0)[0]}")
+
         return action
 
 
@@ -364,8 +397,8 @@ def battle_two_players(player1, player2, n_games=100, verbose=False, start_playe
                 agent_name = "Player2 (O)"
                 current_player_id = -1
 
-            # 预测动作（如果是DecisionTreePlayer，传入player_id用于视角转换）
-            if isinstance(current_agent, DecisionTreePlayer):
+            # 预测动作（传入player_id用于视角转换）
+            if isinstance(current_agent, (DecisionTreePlayer, NeuralNetPlayer)):
                 action = current_agent.predict(obs, player_id=current_player_id)
             else:
                 action = current_agent.predict(obs)
