@@ -1,0 +1,64 @@
+决策树规则提取结果
+================================================================================
+
+统计信息:
+  n_rules: 50
+  avg_antecedents: 7.64
+  n_removed_antecedents: 295
+  default_consequent: 8
+  consequent_distribution: {6: 8, 4: 3, 5: 5, 7: 4, 8: 10, 2: 7, 1: 4, 0: 6, 3: 3}
+
+================================================================================
+
+规则列表 (共 50 条):
+
+规则   1: IF X[4] <= 0.500 AND X[4] <= -0.500 THEN class = 6 (support=9723)
+规则   2: IF X[4] <= 0.500 THEN class = 4 (support=45105)
+规则   3: IF X[4] <= 0.500 AND X[4] > -0.500 AND X[0] <= 0.500 AND X[8] > 0.500 THEN class = 4 (support=6600)
+规则   4: IF X[4] <= 0.500 AND X[4] > -0.500 AND X[0] > 0.500 THEN class = 4 (support=6854)
+规则   5: IF X[0] <= -0.500 THEN class = 5 (support=43200)
+规则   6: IF X[4] > 0.500 AND X[5] <= 0.500 AND X[0] <= -0.500 AND X[7] <= 0.500 AND X[6] <= 0.500 AND X[2] <= 0.500 AND X[1] <= 0.500 AND X[3] > 0.500 THEN class = 5 (support=3731)
+规则   7: IF X[0] <= -0.500 AND X[1] > 0.500 THEN class = 7 (support=3817)
+规则   8: IF X[4] > 0.500 AND X[5] <= 0.500 AND X[0] <= -0.500 AND X[7] <= 0.500 AND X[6] <= 0.500 AND X[2] > 0.500 AND X[3] <= -0.500 THEN class = 6 (support=2693)
+规则   9: IF X[4] > 0.500 AND X[5] <= 0.500 AND X[0] <= -0.500 AND X[7] <= 0.500 AND X[6] <= 0.500 AND X[2] > 0.500 AND X[3] > -0.500 THEN class = 8 (support=7580)
+规则  10: IF X[0] <= -0.500 AND X[6] > 0.500 THEN class = 2 (support=13706)
+规则  11: IF X[1] <= -0.500 THEN class = 2 (support=1330)
+规则  12: IF X[7] > 0.500 AND X[1] > -0.500 THEN class = 1 (support=10465)
+规则  13: IF X[5] <= 0.500 AND X[2] <= -0.500 AND X[8] <= 0.500 AND X[1] <= 0.500 THEN class = 8 (support=34859)
+规则  14: IF X[2] <= -0.500 AND X[8] <= 0.500 THEN class = 8 (support=7370)
+规则  15: IF X[2] <= -0.500 AND X[1] > 0.500 THEN class = 7 (support=3737)
+规则  16: IF X[2] <= -0.500 THEN class = 8 (support=9157)
+规则  17: IF X[4] > 0.500 AND X[5] <= 0.500 AND X[0] > -0.500 AND X[2] <= -0.500 AND X[8] <= 0.500 AND X[3] <= 0.500 AND X[7] > 0.500 AND X[1] <= -0.500 THEN class = 0 (support=1221)
+规则  18: IF X[4] > 0.500 AND X[5] <= 0.500 AND X[0] > -0.500 AND X[2] <= -0.500 AND X[8] <= 0.500 AND X[3] <= 0.500 AND X[7] > 0.500 AND X[1] > -0.500 THEN class = 1 (support=7037)
+规则  19: IF X[4] > 0.500 AND X[5] <= 0.500 AND X[0] > -0.500 AND X[2] <= -0.500 AND X[8] <= 0.500 AND X[3] > 0.500 AND X[5] <= -0.500 THEN class = 8 (support=1317)
+规则  20: IF X[4] > 0.500 AND X[5] <= 0.500 AND X[0] > -0.500 AND X[2] <= -0.500 AND X[8] <= 0.500 AND X[3] > 0.500 AND X[5] > -0.500 THEN class = 5 (support=8070)
+规则  21: IF X[2] <= -0.500 AND X[1] <= -0.500 THEN class = 0 (support=3659)
+规则  22: IF X[0] > -0.500 AND X[2] <= -0.500 AND X[8] > 0.500 AND X[1] > -0.500 THEN class = 6 (support=11643)
+规则  23: IF X[5] <= 0.500 AND X[1] <= -0.500 THEN class = 5 (support=3319)
+规则  24: IF X[1] <= -0.500 THEN class = 8 (support=47966)
+规则  25: IF X[4] > 0.500 AND X[5] <= 0.500 AND X[0] > -0.500 AND X[2] > -0.500 AND X[1] <= -0.500 AND X[8] <= 0.500 AND X[6] <= 0.500 AND X[8] > -0.500 AND X[7] > 0.500 THEN class = 2 (support=2005)
+规则  26: IF X[5] <= 0.500 AND X[1] <= -0.500 AND X[6] > 0.500 THEN class = 2 (support=12289)
+规则  27: IF X[4] > 0.500 AND X[5] <= 0.500 AND X[0] > -0.500 AND X[2] > -0.500 AND X[1] <= -0.500 AND X[8] > 0.500 AND X[5] <= -0.500 THEN class = 0 (support=2249)
+规则  28: IF X[2] > -0.500 AND X[1] <= -0.500 THEN class = 0 (support=10340)
+规则  29: IF X[6] <= -0.500 AND X[1] <= 0.500 AND X[8] <= 0.500 AND X[0] <= 0.500 THEN class = 1 (support=43551)
+规则  30: IF X[4] > 0.500 AND X[5] <= 0.500 AND X[0] > -0.500 AND X[2] > -0.500 AND X[1] > -0.500 AND X[6] <= -0.500 AND X[1] <= 0.500 AND X[8] <= 0.500 AND X[0] <= 0.500 AND X[3] > 0.500 THEN class = 5 (support=1552)
+规则  31: IF X[6] <= -0.500 AND X[0] > 0.500 THEN class = 8 (support=9116)
+规则  32: IF X[4] > 0.500 AND X[5] <= 0.500 AND X[0] > -0.500 AND X[2] > -0.500 AND X[1] > -0.500 AND X[6] <= -0.500 AND X[1] <= 0.500 AND X[8] > 0.500 AND X[5] <= -0.500 THEN class = 1 (support=1948)
+规则  33: IF X[2] > -0.500 AND X[8] > 0.500 THEN class = 0 (support=5522)
+规则  34: IF X[7] <= -0.500 THEN class = 8 (support=1260)
+规则  35: IF X[1] > 0.500 AND X[7] > -0.500 THEN class = 7 (support=6676)
+规则  36: IF X[4] > 0.500 AND X[5] <= 0.500 AND X[0] > -0.500 AND X[2] > -0.500 AND X[1] > -0.500 AND X[6] > -0.500 AND X[3] <= -0.500 AND X[2] <= 0.500 AND X[8] <= 0.500 AND X[8] <= -0.500 THEN class = 7 (support=4130)
+规则  37: IF X[0] > -0.500 AND X[6] > -0.500 AND X[3] <= -0.500 AND X[8] <= 0.500 THEN class = 8 (support=44941)
+规则  38: IF X[8] > 0.500 AND X[7] <= -0.500 THEN class = 0 (support=2252)
+规则  39: IF X[6] > -0.500 AND X[8] > 0.500 AND X[7] > -0.500 THEN class = 6 (support=2459)
+规则  40: IF X[2] > 0.500 THEN class = 6 (support=10245)
+规则  41: IF X[7] <= -0.500 AND X[5] <= -0.500 AND X[0] <= 0.500 THEN class = 3 (support=6234)
+规则  42: IF X[5] <= -0.500 AND X[0] > 0.500 THEN class = 8 (support=4029)
+规则  43: IF X[2] > -0.500 AND X[1] > -0.500 AND X[6] > -0.500 AND X[3] > -0.500 AND X[7] <= -0.500 AND X[5] > -0.500 AND X[2] <= 0.500 THEN class = 2 (support=41149)
+规则  44: IF X[2] > 0.500 THEN class = 6 (support=3573)
+规则  45: IF X[0] > -0.500 AND X[1] > -0.500 AND X[6] > -0.500 AND X[3] > -0.500 AND X[7] > -0.500 AND X[8] <= -0.500 THEN class = 2 (support=42337)
+规则  46: IF X[4] > 0.500 AND X[5] <= 0.500 AND X[0] > -0.500 AND X[2] > -0.500 AND X[1] > -0.500 AND X[6] > -0.500 AND X[3] > -0.500 AND X[7] > -0.500 AND X[8] <= -0.500 AND X[6] > 0.500 THEN class = 2 (support=4203)
+规则  47: IF X[4] > 0.500 AND X[0] > -0.500 AND X[2] > -0.500 AND X[1] > -0.500 AND X[6] > -0.500 AND X[3] > -0.500 AND X[7] > -0.500 AND X[8] > -0.500 THEN class = 6 (support=34742)
+规则  48: IF X[5] > 0.500 AND X[3] <= -0.500 THEN class = 6 (support=4343)
+规则  49: IF X[5] > 0.500 AND X[0] <= -0.500 THEN class = 3 (support=11475)
+规则  50: IF X[5] > 0.500 AND X[3] > -0.500 AND X[0] > -0.500 THEN class = 3 (support=8490)
