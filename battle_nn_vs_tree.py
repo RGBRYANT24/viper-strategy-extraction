@@ -224,7 +224,7 @@ class DecisionTreePlayer:
 
     def predict(self, obs, player_id=1):
         """
-        预测动作
+        预测动作（使用概率掩码确保合法性）
 
         Args:
             obs: 棋盘状态（从当前环境视角）
@@ -239,7 +239,28 @@ class DecisionTreePlayer:
             obs_transformed = obs
 
         obs_reshaped = obs_transformed.reshape(1, -1)
-        action = self.model.predict(obs_reshaped)[0]
+
+        # 检查模型是否支持predict_proba
+        if hasattr(self.model, 'predict_proba'):
+            # 使用概率掩码确保合法性
+            action_probs = self.model.predict_proba(obs_reshaped)[0]
+
+            # 获取合法动作（基于原始观察）
+            legal_actions = np.where(obs == 0)[0]
+
+            if len(legal_actions) == 0:
+                # 没有合法动作，返回任意动作
+                action = 0
+            else:
+                # 应用掩码：非法动作的概率设为-inf
+                masked_probs = np.full(9, -np.inf)
+                masked_probs[legal_actions] = action_probs[legal_actions]
+
+                # 选择合法动作中概率最高的
+                action = np.argmax(masked_probs)
+        else:
+            # 如果模型不支持predict_proba，退回到直接预测
+            action = self.model.predict(obs_reshaped)[0]
 
         # 调试输出前几次预测
         self.predict_count += 1
@@ -258,17 +279,19 @@ class DecisionTreePlayer:
 
 class NeuralNetPlayer:
     """神经网络玩家"""
-    def __init__(self, model_path, model_type='auto', debug=False):
+    def __init__(self, model_path, model_type='auto', debug=False, use_q_masking=True):
         """
         Args:
             model_path: 模型文件路径
             model_type: 模型类型 ('auto', 'PPO', 'DQN', 'A2C')
                        'auto' 会自动尝试检测模型类型
             debug: 是否启用调试输出
+            use_q_masking: 是否使用Q值掩码（仅对DQN有效）
         """
         self.model = None
         self.model_type = model_type
         self.debug = debug
+        self.use_q_masking = use_q_masking
         self.predict_count = 0
 
         if model_type == 'auto':
@@ -286,6 +309,8 @@ class NeuralNetPlayer:
                 raise ValueError(f"Unsupported model type: {model_type}")
 
         print(f"已加载神经网络模型 ({self.model_type}): {model_path}")
+        if self.use_q_masking and self.model_type == 'DQN':
+            print("  使用Q值掩码确保合法动作")
 
     def _auto_load(self, model_path):
         """自动检测并加载模型"""
@@ -311,7 +336,7 @@ class NeuralNetPlayer:
 
     def predict(self, obs, player_id=1):
         """
-        预测动作
+        预测动作（可选Q值掩码）
 
         Args:
             obs: 棋盘状态（从当前环境视角）
@@ -328,7 +353,44 @@ class NeuralNetPlayer:
         else:
             obs_transformed = obs
 
-        action, _ = self.model.predict(obs_transformed, deterministic=True)
+        # 如果是DQN且启用Q值掩码，使用Q值+掩码选择动作
+        if self.use_q_masking and self.model_type == 'DQN':
+            try:
+                # 获取Q值
+                import torch
+                obs_tensor = torch.FloatTensor(obs_transformed).unsqueeze(0)
+
+                # 将tensor移动到模型所在的设备
+                device = next(self.model.q_net.parameters()).device
+                obs_tensor = obs_tensor.to(device)
+
+                # 使用DQN的q_net获取Q值
+                with torch.no_grad():
+                    q_values = self.model.q_net(obs_tensor).cpu().numpy()[0]
+
+                # 获取合法动作
+                legal_actions = np.where(obs == 0)[0]
+
+                if len(legal_actions) == 0:
+                    action = 0
+                else:
+                    # 应用掩码：非法动作的Q值设为-inf
+                    masked_q = np.full(9, -np.inf)
+                    masked_q[legal_actions] = q_values[legal_actions]
+
+                    # 选择Q值最高的合法动作
+                    action = np.argmax(masked_q)
+
+                if self.debug:
+                    print(f"[Q值掩码] 选择动作 {action}, Q值 = {q_values[action]:.4f}")
+            except Exception as e:
+                # 如果Q值获取失败，退回到标准predict
+                if self.debug:
+                    print(f"Q值掩码失败，使用标准predict: {e}")
+                action, _ = self.model.predict(obs_transformed, deterministic=True)
+        else:
+            # 标准predict
+            action, _ = self.model.predict(obs_transformed, deterministic=True)
 
         # 调试输出前几次预测
         self.predict_count += 1
