@@ -2,6 +2,8 @@ import argparse
 
 from train.oracle import train_oracle
 from train.viper import train_viper
+from train.viper_regression import train_viper_regression
+from train.viper_single_tree import train_viper_single_tree
 from test.oracle import test_oracle
 from test.viper import test_viper
 from verify.correct import verify_correct
@@ -10,6 +12,8 @@ COMMAND_MAP = {
     'train-oracle': train_oracle,
     'test-oracle': test_oracle,
     'train-viper': train_viper,
+    'train-viper-regression': train_viper_regression,
+    'train-viper-single': train_viper_single_tree,
     'test-viper': test_viper,
     'verify-correct': verify_correct,
 }
@@ -76,6 +80,30 @@ if __name__ == "__main__":
         "--max-leaves", type=int, default=None,
         help="Maximum number of leave nodes to use for the extracted decision tree")
     train_viper.add_argument(
+        "--max-depth", type=int, default=None,
+        help="Maximum depth to use for the extracted decision tree")
+
+    train_viper_regression = subparsers.add_parser('train-viper-regression', parents=[parent_parser],
+                                                   help="Run VIPER with regression trees (Q-value output)")
+    train_viper_regression.add_argument(
+        "--n-iter", type=int, default=80,
+        help="Number of iterations of Viper")
+    train_viper_regression.add_argument(
+        "--max-leaves", type=int, default=None,
+        help="Maximum number of leave nodes to use for the extracted decision tree")
+    train_viper_regression.add_argument(
+        "--max-depth", type=int, default=None,
+        help="Maximum depth to use for the extracted decision tree")
+
+    train_viper_single = subparsers.add_parser('train-viper-single', parents=[parent_parser],
+                                               help="Run VIPER with single tree + probability masking (RECOMMENDED)")
+    train_viper_single.add_argument(
+        "--n-iter", type=int, default=80,
+        help="Number of iterations of Viper")
+    train_viper_single.add_argument(
+        "--max-leaves", type=int, default=None,
+        help="Maximum number of leave nodes to use for the extracted decision tree")
+    train_viper_single.add_argument(
         "--max-depth", type=int, default=None,
         help="Maximum depth to use for the extracted decision tree")
 
