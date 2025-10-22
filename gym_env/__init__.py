@@ -28,6 +28,20 @@ if has_gymnasium:
         kwargs={'opponent_type': 'random', 'minmax_depth': 9}
     )
 
+    # Register TicTacToe Self-Play environment
+    gymnasium_register(
+        id='TicTacToe-SelfPlay-v0',
+        entry_point='gym_env.tictactoe_selfplay:TicTacToeSelfPlayEnv',
+        kwargs={'opponent_policy': None}
+    )
+
+    # Register TicTacToe Delta-Uniform Self-Play environment
+    gymnasium_register(
+        id='TicTacToe-DeltaSelfPlay-v0',
+        entry_point='gym_env.tictactoe_delta_selfplay:TicTacToeDeltaSelfPlayEnv',
+        kwargs={'baseline_pool': None, 'learned_pool': None, 'play_as_o_prob': 0.5}
+    )
+
 
 def make_env(args, test_viper=False):
     if args.env_name == "PongNoFrameskip-v4":
