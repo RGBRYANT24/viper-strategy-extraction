@@ -1,6 +1,10 @@
 """
 神经网络质量全面评估工具
 判断TicTacToe策略是否达到最优
+
+支持评估：
+1. 使用 MaskedDQNPolicy 的模型（自动屏蔽非法动作）
+2. 标准 DQN 模型
 """
 
 import argparse
@@ -19,11 +23,85 @@ class TicTacToeNNEvaluator:
 
     def __init__(self, model_path):
         self.model = DQN.load(model_path)
+        self.model_path = model_path
+
+        # 检测是否使用 MaskedDQNPolicy
+        from gym_env.masked_dqn_policy import MaskedDQNPolicy
+        self.is_masked = isinstance(self.model.policy, MaskedDQNPolicy)
+
         self.win_combinations = [
             [0, 1, 2], [3, 4, 5], [6, 7, 8],  # 行
             [0, 3, 6], [1, 4, 7], [2, 5, 8],  # 列
             [0, 4, 8], [2, 4, 6]              # 对角线
         ]
+
+    def evaluate_action_masking(self):
+        """评估 Action Masking 功能（仅对 MaskedDQNPolicy）"""
+        if not self.is_masked:
+            print("⚠ 跳过：模型未使用 MaskedDQNPolicy")
+            return True
+
+        print("=" * 70)
+        print("评估 0: Action Masking 功能")
+        print("=" * 70)
+        print()
+
+        test_cases = [
+            {
+                'name': '空棋盘',
+                'board': np.zeros(9, dtype=np.float32),
+                'expected_legal': list(range(9))
+            },
+            {
+                'name': '部分占据',
+                'board': np.array([1, 1, 0, -1, 0, 0, 0, 0, 0], dtype=np.float32),
+                'expected_legal': [2, 4, 5, 6, 7, 8]
+            },
+            {
+                'name': '翻转视角（后手）',
+                'board': np.array([-1, 0, 1, 0, -1, 0, 0, 0, 1], dtype=np.float32),
+                'expected_legal': [1, 3, 5, 6, 7]
+            },
+            {
+                'name': '只剩一个空位',
+                'board': np.array([1, -1, 1, -1, 0, 1, -1, 1, -1], dtype=np.float32),
+                'expected_legal': [4]
+            }
+        ]
+
+        all_passed = True
+
+        for test_case in test_cases:
+            board = test_case['board']
+            expected_legal = test_case['expected_legal']
+
+            print(f"[{test_case['name']}]")
+            print(f"  棋盘:\n{board.reshape(3, 3)}")
+            print(f"  合法动作: {expected_legal}")
+
+            # 多次预测检查一致性
+            actions = []
+            for _ in range(10):
+                action, _ = self.model.predict(board, deterministic=True)
+                actions.append(int(action))
+
+            # 检查是否有非法动作
+            illegal = [a for a in actions if a not in expected_legal]
+
+            if illegal:
+                print(f"  ✗ 失败：检测到非法动作 {set(illegal)}")
+                all_passed = False
+            else:
+                print(f"  ✓ 通过：所有预测都是合法动作")
+
+            print()
+
+        if all_passed:
+            print("✓ Action Masking 功能正常工作\n")
+        else:
+            print("✗ Action Masking 存在问题，需要检查\n")
+
+        return all_passed
 
     def evaluate_critical_positions(self):
         """评估关键局面识别能力（最优策略必须正确的局面）"""
@@ -319,7 +397,7 @@ class TicTacToeNNEvaluator:
 
         # 多次预测，检查一致性
         print("\n[测试] 空棋盘预测10次（确定性）")
-        actions_det = [self.model.predict(obs, deterministic=True)[0] for _ in range(10)]
+        actions_det = [int(self.model.predict(obs, deterministic=True)[0]) for _ in range(10)]
         unique_det = set(actions_det)
 
         print(f"  预测结果: {actions_det}")
@@ -343,11 +421,18 @@ class TicTacToeNNEvaluator:
         print("TicTacToe 神经网络质量综合评估")
         print("🎯" * 35 + "\n")
 
-        print(f"模型路径: {self.model.num_timesteps} 步训练")
+        print(f"模型路径: {self.model_path}")
+        print(f"训练步数: {self.model.num_timesteps}")
         print(f"网络结构: {self.model.policy.net_arch}")
+        print(f"Policy类型: {self.model.policy.__class__.__name__}")
+        if self.is_masked:
+            print("✓ 使用 MaskedDQNPolicy（支持action masking）")
         print()
 
         # 执行所有评估
+        # 0. 如果使用MaskedDQNPolicy，先测试mask功能
+        mask_ok = self.evaluate_action_masking() if self.is_masked else True
+
         critical_accuracy = self.evaluate_critical_positions()
         symmetry_ok = self.evaluate_symmetry_consistency()
         is_optimal, draw_rate = self.evaluate_against_perfect_play()
@@ -365,6 +450,9 @@ class TicTacToeNNEvaluator:
             "vs MinMax平局率": draw_rate >= 0.95,
             "无输局": is_optimal,
         }
+
+        if self.is_masked:
+            criteria["Action Masking"] = mask_ok
 
         print("\n评估标准:")
         for criterion, passed in criteria.items():

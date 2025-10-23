@@ -1,5 +1,5 @@
 """
-使用 Delta-Uniform Self-Play 训练 TicTacToe
+使用 Delta-Uniform Self-Play 训练 TicTacToe (Masked DQN版本)
 解决普通自我对弈陷入局部最优的问题
 
 核心思想:
@@ -7,6 +7,12 @@
 2. 加入基准策略池 (MinMax, Random) 提高鲁棒性
 3. 每次 reset() 时从两个池中均匀采样对手
 4. 训练先手和后手，通过棋盘翻转保持网络输入一致性
+
+关键改进（Masked DQN）:
+- 使用自定义 MaskedDQNPolicy 在预测时自动屏蔽非法动作
+- 避免Q值被非法动作污染，提升训练质量
+- 完全兼容 stable-baselines3.DQN 接口（与VIPER框架兼容）
+- 环境的 -10 惩罚作为安全网（理论上不会触发）
 """
 
 import argparse
@@ -26,6 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import gym_env
 from gym_env.tictactoe_delta_selfplay import TicTacToeDeltaSelfPlayEnv
 from gym_env.policies import RandomPlayerPolicy, MinMaxPlayerPolicy
+from gym_env.masked_dqn_policy import MaskedDQNPolicy
 
 
 def main():
@@ -54,6 +61,7 @@ def main():
 
     print("=" * 70)
     print(f"TicTacToe Delta-{args.max_pool_size}-Uniform Self-Play 训练")
+    print("使用 Masked DQN（自动屏蔽非法动作）")
     print("=" * 70)
     print(f"总步数: {args.total_timesteps}")
     print(f"并行环境数: {args.n_env}")
@@ -61,6 +69,7 @@ def main():
     print(f"历史策略池容量 (K): {args.max_pool_size}")
     print(f"后手训练概率: {args.play_as_o_prob}")
     print(f"使用 MinMax 基准: {args.use_minmax}")
+    print(f"✓ 使用 MaskedDQNPolicy（在神经网络层面屏蔽非法动作）")
     print()
 
     # --- 步骤 1: 初始化策略池 ---
@@ -111,8 +120,9 @@ def main():
     # 解析网络结构
     net_arch = [int(x) for x in args.net_arch.split(',')]
 
+    # ⭐ 关键改动：使用 MaskedDQNPolicy 替代标准 MlpPolicy
     model = DQN(
-        policy='MlpPolicy',
+        policy=MaskedDQNPolicy,  # 自定义策略，在预测时自动mask非法动作
         env=envs,
         learning_starts=1000,
         learning_rate=1e-3,
@@ -129,7 +139,8 @@ def main():
         seed=args.seed
     )
 
-    print("DQN 模型配置:")
+    print("Masked DQN 模型配置:")
+    print(f"  Policy: MaskedDQNPolicy（自动屏蔽非法动作）")
     print(f"  网络结构: {model.policy_kwargs['net_arch']}")
     print(f"  学习率: {model.learning_rate}")
     print(f"  批大小: {model.batch_size}")
@@ -219,6 +230,7 @@ def main():
                 if 'illegal_move' in info and info['illegal_move']:
                     illegal_moves += 1
                     losses += 1
+                    print(f"  ⚠ 第{i+1}局出现非法移动！MaskedDQNPolicy可能有bug。")
                 elif reward > 0:
                     wins += 1
                 elif reward < 0:
@@ -239,9 +251,10 @@ def main():
 
     # 评估
     if illegal_moves > 0:
-        print("⚠ 存在非法移动！需要检查策略。")
+        print("⚠ 警告：存在非法移动！MaskedDQNPolicy 可能有bug，需要检查。")
     elif draws >= 40:
         print("✓ 优秀！高平局率说明学到了接近最优策略。")
+        print("  MaskedDQNPolicy 正常工作，无非法移动。")
     elif draws >= 30:
         print("△ 良好，但还有提升空间。")
     else:
@@ -251,6 +264,12 @@ def main():
     print("=" * 70)
     print("训练和评估完成！")
     print("=" * 70)
+    print()
+    print("下一步：")
+    print(f"  1. 使用 evaluate_nn_quality.py 全面评估模型质量")
+    print(f"     python evaluate_nn_quality.py --model {args.output}")
+    print(f"  2. 使用 VIPER 提取决策树")
+    print(f"     python main.py --train-viper --env-name TicTacToe-v0 --oracle {args.output}")
 
 
 if __name__ == "__main__":
