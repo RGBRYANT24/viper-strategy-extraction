@@ -225,12 +225,30 @@ class TicTacToeDeltaSelfPlayEnv(gym.Env):
                 # 对手看到的棋盘：自己=1，对手=-1
                 opponent_view = -self.board
 
-                # 调用对手策略
-                action, _ = self.current_opponent.predict(opponent_view, deterministic=False)
+                # 计算对手的 action mask（从对手视角）
+                # 空位置是合法动作
+                action_mask = (self.board == 0).astype(np.int8)
+
+                # 调用对手策略（尝试传递 action_masks）
+                # 如果策略支持 action_masks 参数（如 MaskablePPO），则使用
+                # 否则回退到不带 mask 的调用
+                try:
+                    action, _ = self.current_opponent.predict(
+                        opponent_view,
+                        deterministic=False,
+                        action_masks=action_mask
+                    )
+                except TypeError:
+                    # 策略不支持 action_masks 参数（如 RandomPolicy）
+                    action, _ = self.current_opponent.predict(opponent_view, deterministic=False)
 
                 # 验证动作合法性（基于实际棋盘）
                 if self._is_valid_action(action):
                     return action
+                else:
+                    # 如果策略返回非法动作，打印警告并回退到随机
+                    if self.step_count <= 10:
+                        print(f"[WARNING] Opponent returned illegal action {action}, falling back to random")
             except Exception as e:
                 # 如果策略失败，回退到随机
                 if self.step_count <= 10:

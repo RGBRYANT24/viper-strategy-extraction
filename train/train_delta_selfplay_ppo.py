@@ -74,13 +74,14 @@ class PolicySnapshot:
         self._policy.to(self.device)
         self._policy.eval()  # 设置为评估模式
 
-    def predict(self, observation, deterministic=False):
+    def predict(self, observation, deterministic=False, action_masks=None):
         """
-        预测动作（兼容 stable-baselines3 接口）
+        预测动作（兼容 MaskablePPO 接口）
 
         Args:
             observation: 观察值
             deterministic: 是否使用确定性策略
+            action_masks: 动作掩码 (可选)，shape=(n_actions,), 1=合法, 0=非法
 
         Returns:
             action: 动作
@@ -95,6 +96,23 @@ class PolicySnapshot:
 
             # 获取动作分布
             distribution = self._policy.get_distribution(obs_tensor)
+
+            # 如果提供了 action_masks，应用 mask
+            if action_masks is not None:
+                # 将 mask 转换为张量
+                if not isinstance(action_masks, torch.Tensor):
+                    mask_tensor = torch.as_tensor(action_masks, dtype=torch.bool).unsqueeze(0).to(self.device)
+                else:
+                    mask_tensor = action_masks.unsqueeze(0).to(self.device)
+
+                # 应用 mask：将非法动作的 logits 设为 -inf
+                # 注意：distribution 是 Categorical，需要修改其 logits
+                if hasattr(distribution.distribution, 'logits'):
+                    logits = distribution.distribution.logits.clone()
+                    logits[~mask_tensor] = -float('inf')
+                    # 重新创建分布
+                    from torch.distributions import Categorical
+                    distribution.distribution = Categorical(logits=logits)
 
             # 采样动作
             if deterministic:
@@ -269,8 +287,9 @@ def main():
         done = False
 
         while not done:
-            # MaskablePPO 自动处理 masking
-            action, _ = model.predict(obs, deterministic=True)
+            # 获取 action mask 并传递给 predict
+            action_mask = mask_fn(test_env)
+            action, _ = model.predict(obs, deterministic=True, action_masks=action_mask)
             obs, reward, terminated, truncated, info = test_env.step(action)
             done = terminated or truncated
 
