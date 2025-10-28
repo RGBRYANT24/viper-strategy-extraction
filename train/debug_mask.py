@@ -331,7 +331,39 @@ def print_prediction():
             #         draws += 1
 
 
+def print_board_and_mask():
+    """打印棋盘和对应的 mask"""
+    print("=" * 70)
+    print("测试 5: 打印棋盘和对应的 mask")
+    print("=" * 70)
 
+    # 创建环境
+    env = gym.make('TicTacToe-v0', opponent_type='random')
+    env = Monitor(env)
+    env = ActionMasker(env, mask_fn)
+
+    # 手动设置一个已占用的棋盘
+    obs, _ = env.reset()
+    print(obs)
+    mask = mask_fn(env)
+    print(mask)
+
+    model = MaskablePPO.load("log/oracle_TicTacToe_ppo_masked.zip", env=env)
+    obs, _ = env.reset()
+    mask_tensor = torch.tensor(mask).unsqueeze(0)
+    print('mask_tensor', mask_tensor)
+    obs_tensor = torch.tensor(obs).float().unsqueeze(0)
+    print('obs_tensor', obs_tensor)
+
+    device = model.policy.device
+    print('device', device)
+
+    obs_tensor = obs_tensor.to(device)
+    mask_tensor = mask_tensor.to(device)
+
+    with torch.no_grad():
+        action_probs = model.policy.get_distribution(obs_tensor, action_masks=mask_tensor).distribution.probs.cpu().numpy()
+        print('action_probs', action_probs)
 
 
 if __name__ == "__main__":
@@ -340,10 +372,11 @@ if __name__ == "__main__":
     print("=" * 70)
     print()
 
-    test_mask_function()
-    test_maskable_ppo_prediction()
-    test_policy_snapshot()
-    test_loaded_model()
+    print_board_and_mask()
+    # test_mask_function()
+    # test_maskable_ppo_prediction()
+    # test_policy_snapshot()
+    # test_loaded_model()
 
     print("=" * 70)
     print("调试完成")

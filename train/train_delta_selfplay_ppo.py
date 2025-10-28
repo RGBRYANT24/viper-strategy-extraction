@@ -157,6 +157,10 @@ def main():
     parser.add_argument("--verbose", type=int, default=1)
     parser.add_argument("--use-minmax", action="store_true")
     parser.add_argument("--net-arch", type=str, default="128,128")
+    parser.add_argument("--ent-coef", type=float, default=0.05,
+                       help="PPO 熵系数 (增加探索性)")
+    parser.add_argument("--random-weight", type=float, default=2.0,
+                       help="Random 对手的采样权重（相对于其他对手）")
     args = parser.parse_args()
 
     print("=" * 70)
@@ -164,6 +168,8 @@ def main():
     print("=" * 70)
     print(f"总步数: {args.total_timesteps}")
     print(f"并行环境数: {args.n_env}")
+    print(f"熵系数: {args.ent_coef} (控制探索性)")
+    print(f"Random 对手权重: {args.random_weight}x")
     print(f"✓ 使用 Action Masking")
     print()
 
@@ -173,23 +179,65 @@ def main():
     act_space = temp_env.action_space
     temp_env.close()
 
+    # 始终添加 Random 作为初始对手
     baseline_policies = [RandomPlayerPolicy(obs_space, act_space)]
+
+    # 如果指定，添加 MinMax（但默认降低其采样权重）
     if args.use_minmax:
         baseline_policies.append(MinMaxPlayerPolicy(obs_space, act_space))
 
     learned_policy_pool = deque(maxlen=args.max_pool_size)
 
     print(f"基准策略池: {len(baseline_policies)} 个对手")
+    for i, policy in enumerate(baseline_policies):
+        print(f"  {i+1}. {policy.__class__.__name__}")
     print(f"学习策略池: 容量 = {args.max_pool_size}")
     print()
 
     # --- 步骤 2: 创建环境（带 Action Masking）---
+    # 创建加权采样的环境包装器
+    class WeightedSelfPlayEnv(TicTacToeDeltaSelfPlayEnv):
+        """支持加权采样的自我对弈环境"""
+        def __init__(self, random_weight=1.0, **kwargs):
+            super().__init__(**kwargs)
+            self.random_weight = random_weight
+
+        def _sample_opponent(self):
+            """加权采样对手"""
+            all_opponents = []
+            weights = []
+
+            # 基准策略池（Random 有更高权重）
+            for policy in self.baseline_pool:
+                all_opponents.append(policy)
+                if isinstance(policy, RandomPlayerPolicy):
+                    weights.append(self.random_weight)  # Random 对手权重更高
+                else:
+                    weights.append(1.0)
+
+            # 学习策略池（正常权重）
+            if self.learned_pool is not None and len(self.learned_pool) > 0:
+                for policy in list(self.learned_pool):
+                    all_opponents.append(policy)
+                    weights.append(1.0)
+
+            if len(all_opponents) == 0:
+                return None
+
+            # 归一化权重并采样
+            weights = np.array(weights)
+            probs = weights / weights.sum()
+            idx = np.random.choice(len(all_opponents), p=probs)
+
+            return all_opponents[idx]
+
     def make_masked_env():
-        env = TicTacToeDeltaSelfPlayEnv(
+        env = WeightedSelfPlayEnv(
             baseline_pool=baseline_policies,
             learned_pool=learned_policy_pool,
             play_as_o_prob=args.play_as_o_prob,
-            sampling_strategy='uniform'
+            sampling_strategy='uniform',
+            random_weight=args.random_weight  # 传递 Random 权重
         )
         env = Monitor(env)
         # ⭐ 关键：添加 ActionMasker 包装器
@@ -214,7 +262,7 @@ def main():
         gamma=0.99,
         gae_lambda=0.95,
         clip_range=0.2,
-        ent_coef=0.01,         # 熵系数，鼓励探索
+        ent_coef=args.ent_coef,  # 熵系数，鼓励探索（从参数读取）
         policy_kwargs={'net_arch': net_arch},
         verbose=args.verbose,
         seed=args.seed
@@ -224,6 +272,7 @@ def main():
     print(f"  网络结构: {net_arch}")
     print(f"  学习率: {model.learning_rate}")
     print(f"  批大小: {model.batch_size}")
+    print(f"  熵系数: {model.ent_coef} (控制探索)")
     print(f"  ✓ Action Masking: 启用")
     print()
 
