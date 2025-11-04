@@ -161,16 +161,45 @@ def main():
                        help="PPO 熵系数 (增加探索性)")
     parser.add_argument("--random-weight", type=float, default=2.0,
                        help="Random 对手的采样权重（相对于其他对手）")
+
+    # 新增：支持加载已有模型继续训练
+    parser.add_argument("--load-model", type=str, default=None,
+                       help="加载已有模型继续训练（模型路径）")
+    parser.add_argument("--auto-name", action="store_true",
+                       help="自动生成输出文件名（包含时间戳和参数）")
+
     args = parser.parse_args()
 
+    # 自动生成输出文件名
+    if args.auto_name:
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_name = "oracle_TicTacToe_ppo"
+
+        if args.load_model:
+            # 继续训练的情况
+            model_basename = os.path.basename(args.load_model).replace('.zip', '')
+            output_filename = f"{model_basename}_cont_ent{args.ent_coef}_steps{args.total_timesteps//1000}k_{timestamp}.zip"
+        else:
+            # 从头训练的情况
+            output_filename = f"{base_name}_ent{args.ent_coef}_steps{args.total_timesteps//1000}k_{timestamp}.zip"
+
+        args.output = os.path.join("log", output_filename)
+
     print("=" * 70)
-    print(f"TicTacToe MaskablePPO Training (Delta-{args.max_pool_size}-Uniform)")
+    if args.load_model:
+        print(f"TicTacToe MaskablePPO 继续训练 (Delta-{args.max_pool_size}-Uniform)")
+    else:
+        print(f"TicTacToe MaskablePPO Training (Delta-{args.max_pool_size}-Uniform)")
     print("=" * 70)
     print(f"总步数: {args.total_timesteps}")
     print(f"并行环境数: {args.n_env}")
     print(f"熵系数: {args.ent_coef} (控制探索性)")
     print(f"Random 对手权重: {args.random_weight}x")
     print(f"✓ 使用 Action Masking")
+    if args.load_model:
+        print(f"加载模型: {args.load_model}")
+    print(f"输出路径: {args.output}")
     print()
 
     # --- 步骤 1: 初始化策略池 ---
@@ -249,26 +278,50 @@ def main():
     print(f"创建了 {args.n_env} 个并行环境（带 masking）")
     print()
 
-    # --- 步骤 3: 创建 MaskablePPO 模型 ---
+    # --- 步骤 3: 创建或加载 MaskablePPO 模型 ---
     net_arch = [int(x) for x in args.net_arch.split(',')]
 
-    model = MaskablePPO(
-        policy='MlpPolicy',
-        env=envs,
-        learning_rate=1e-3,
-        n_steps=128,           # PPO: 每次收集多少步
-        batch_size=64,
-        n_epochs=10,           # PPO: 每批数据训练几轮
-        gamma=0.99,
-        gae_lambda=0.95,
-        clip_range=0.2,
-        ent_coef=args.ent_coef,  # 熵系数，鼓励探索（从参数读取）
-        policy_kwargs={'net_arch': net_arch},
-        verbose=args.verbose,
-        seed=args.seed
-    )
+    if args.load_model:
+        # 加载已有模型
+        print(f"加载已有模型: {args.load_model}")
+        if not os.path.exists(args.load_model):
+            raise FileNotFoundError(f"模型文件不存在: {args.load_model}")
 
-    print("MaskablePPO 模型配置:")
+        model = MaskablePPO.load(args.load_model, env=envs)
+        print("✓ 模型加载成功")
+
+        # 更新参数（允许调整探索参数）
+        original_ent_coef = model.ent_coef
+        model.ent_coef = args.ent_coef
+        print(f"✓ 更新熵系数: {original_ent_coef} → {args.ent_coef}")
+
+        # 将当前模型加入策略池
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        initial_snapshot = PolicySnapshot(model.policy, device=device)
+        learned_policy_pool.append(initial_snapshot)
+        print(f"✓ 当前模型已加入策略池")
+
+    else:
+        # 从头创建新模型
+        print("创建新模型...")
+        model = MaskablePPO(
+            policy='MlpPolicy',
+            env=envs,
+            learning_rate=1e-3,
+            n_steps=128,           # PPO: 每次收集多少步
+            batch_size=64,
+            n_epochs=10,           # PPO: 每批数据训练几轮
+            gamma=0.99,
+            gae_lambda=0.95,
+            clip_range=0.2,
+            ent_coef=args.ent_coef,  # 熵系数，鼓励探索（从参数读取）
+            policy_kwargs={'net_arch': net_arch},
+            verbose=args.verbose,
+            seed=args.seed
+        )
+        print("✓ 模型创建成功")
+
+    print("\nMaskablePPO 模型配置:")
     print(f"  网络结构: {net_arch}")
     print(f"  学习率: {model.learning_rate}")
     print(f"  批大小: {model.batch_size}")
