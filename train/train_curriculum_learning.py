@@ -70,7 +70,10 @@ class WeightedSelfPlayEnv(TicTacToeDeltaSelfPlayEnv):
 
 
 class CriticalScenarioGenerator:
-    """生成所有 Win/Lose 关键决策场景"""
+    """
+    生成所有 Win/Lose 关键决策场景
+    使用枚举方法，与 exhaustive_win_lose_test.py 逻辑一致
+    """
 
     WIN_COMBINATIONS = [
         [0, 1, 2], [3, 4, 5], [6, 7, 8],  # 行
@@ -83,57 +86,73 @@ class CriticalScenarioGenerator:
         print(f"[CriticalScenarioGenerator] 生成了 {len(self.scenarios)} 个关键场景")
 
     def _generate_all_scenarios(self):
-        """生成所有关键场景"""
+        """
+        枚举所有 3^9 种棋盘，筛选出合法的关键场景
+        与 exhaustive_win_lose_test.py 逻辑一致
+        """
+        from itertools import product
+
         scenarios = []
 
-        # 生成 winning cases（X只差一步获胜）
-        for win_combo in self.WIN_COMBINATIONS:
-            for empty_pos in win_combo:
-                filled_positions = [pos for pos in win_combo if pos != empty_pos]
-                remaining_positions = [i for i in range(9) if i not in win_combo]
+        # 枚举所有棋盘
+        for config in product([-1, 0, 1], repeat=9):
+            board = np.array(config, dtype=np.float32)
 
-                for num_o in range(0, min(4, len(remaining_positions) + 1)):
-                    if num_o > len(remaining_positions):
-                        continue
+            num_x = int(np.sum(board == 1))
+            num_o = int(np.sum(board == -1))
 
-                    if num_o == 0:
-                        o_combinations = [tuple()]
-                    else:
-                        o_combinations = list(combinations(remaining_positions, num_o))
+            # 基本合法性检查
+            if num_x < num_o - 1 or num_x > num_o + 1:
+                continue
 
-                    for o_positions in o_combinations:
-                        board = np.zeros(9, dtype=np.float32)
+            # 检查是否已经有人获胜
+            if self._check_winner(board, 1) or self._check_winner(board, -1):
+                continue
 
-                        for pos in filled_positions:
-                            board[pos] = 1
-                        for pos in o_positions:
-                            board[pos] = -1
+            # 我们需要找"现在轮到X下"的局面
+            x_to_move = (num_x == num_o) or (num_x == num_o - 1)
 
-                        num_x = np.sum(board == 1)
-                        num_o = np.sum(board == -1)
+            if not x_to_move:
+                continue
 
-                        if abs(num_x - num_o) > 1 or num_x < num_o:
-                            continue
-                        if self._check_winner(board, -1):
-                            continue
+            # 检查X是否即将获胜
+            x_winning_moves = self._is_one_move_to_win(board, 1)
 
-                        scenarios.append({
-                            'board': board.copy(),
-                            'type': 'win'
-                        })
+            # 检查O是否即将获胜（X需要防守）
+            o_winning_moves = self._is_one_move_to_win(board, -1)
 
-        # 生成 defending cases（通过反转）
-        win_scenarios_count = len(scenarios)
-        for i in range(win_scenarios_count):
-            board = scenarios[i]['board']
-            defend_board = -board  # 反转棋盘
+            # 收集获胜场景
+            if len(x_winning_moves) > 0:
+                scenarios.append({
+                    'board': board.copy(),
+                    'type': 'win'
+                })
 
-            scenarios.append({
-                'board': defend_board.copy(),
-                'type': 'defend'
-            })
+            # 收集防守场景
+            if len(o_winning_moves) > 0:
+                scenarios.append({
+                    'board': board.copy(),
+                    'type': 'defend'
+                })
 
         return scenarios
+
+    def _is_one_move_to_win(self, board, player):
+        """
+        检查某个玩家是否只差一步就能获胜
+        返回所有可能的获胜位置列表
+        """
+        results = []
+        for combo in self.WIN_COMBINATIONS:
+            player_count = sum(1 for pos in combo if board[pos] == player)
+            empty_count = sum(1 for pos in combo if board[pos] == 0)
+
+            # 该组合中有2个该玩家的棋子，且有1个空位
+            if player_count == 2 and empty_count == 1:
+                empty_pos = [pos for pos in combo if board[pos] == 0][0]
+                results.append(empty_pos)
+
+        return results
 
     def _check_winner(self, board, player):
         """检查某个玩家是否获胜"""

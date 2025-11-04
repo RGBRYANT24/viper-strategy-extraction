@@ -112,8 +112,10 @@ class ExhaustiveWinLoseTest:
         枚举所有 3^9 种棋盘，筛选出合法的关键场景
 
         返回：
-        - winning_cases: 获胜案例
-        - defending_cases: 防守案例
+        - winning_cases: List[(board, correct_actions: List[int], desc)]
+        - defending_cases: List[(board, correct_actions: List[int], desc)]
+
+        注意：correct_actions是所有正确动作的列表，预测任意一个即算正确
         """
         print("枚举所有可能的棋盘状态 (3^9 = 19683)...")
 
@@ -158,34 +160,50 @@ class ExhaustiveWinLoseTest:
             # 检查O是否即将获胜（X需要防守）
             o_winning_moves = self._is_one_move_to_win(board, -1)
 
-            # 收集获胜案例
-            for pos, combo in x_winning_moves:
-                combo_name = self._get_combo_name(combo)
+            # 收集获胜案例：将同一棋盘的所有获胜位置合并
+            if len(x_winning_moves) > 0:
                 turn_str = "先手" if x_is_first_player else "后手"
-                desc = f"Win {combo_name}, pos {pos} ({turn_str})"
+                positions = [pos for pos, combo in x_winning_moves]
+                combo_names = [self._get_combo_name(combo) for pos, combo in x_winning_moves]
+                desc = f"Win {'+'.join(combo_names)} ({turn_str})"
 
                 # X=1代表当前玩家（己方），O=-1代表对手
                 # 无论先手后手，这个视角都是正确的，不需要翻转
-                winning_cases.append((board.copy(), pos, desc))
+                winning_cases.append((board.copy(), positions, desc))
 
-            # 收集防守案例
-            for pos, combo in o_winning_moves:
-                combo_name = self._get_combo_name(combo)
+            # 收集防守案例：将同一棋盘的所有防守位置合并
+            # 注意：如果同时有获胜机会，也要记录下来（获胜优先于防守）
+            if len(o_winning_moves) > 0:
                 turn_str = "先手" if x_is_first_player else "后手"
-                desc = f"Block {combo_name}, pos {pos} ({turn_str})"
+                defending_positions = [pos for pos, _ in o_winning_moves]
+                winning_positions = [pos for pos, _ in x_winning_moves]  # 同时记录获胜位置
+
+                # 正确动作 = 防守位置 + 获胜位置（获胜更优）
+                all_correct_positions = defending_positions + winning_positions
+
+                combo_names = [self._get_combo_name(combo) for pos, combo in o_winning_moves]
+                desc = f"Block {'+'.join(combo_names)} ({turn_str})"
+                if len(winning_positions) > 0:
+                    desc += f" [也可获胜]"
 
                 # X=1代表当前玩家（己方），O=-1代表对手
                 # 无论先手后手，这个视角都是正确的，不需要翻转
-                defending_cases.append((board.copy(), pos, desc))
+                defending_cases.append((board.copy(), all_correct_positions, desc))
 
-        print(f"✓ 找到 {len(winning_cases)} 个获胜案例")
-        print(f"✓ 找到 {len(defending_cases)} 个防守案例\n")
+        print(f"✓ 找到 {len(winning_cases)} 个获胜场景")
+        print(f"✓ 找到 {len(defending_cases)} 个防守场景\n")
 
         return winning_cases, defending_cases
 
-    def test_cases(self, test_cases: List[Tuple[np.ndarray, int, str]],
+    def test_cases(self, test_cases: List[Tuple[np.ndarray, List[int], str]],
                    title: str, verbose: bool = False, max_display: int = 5) -> Dict:
-        """测试案例"""
+        """
+        测试案例
+
+        参数:
+        - test_cases: List[(board, correct_actions, desc)]
+          其中 correct_actions 是所有正确动作的列表，预测任意一个即算正确
+        """
         print("=" * 70)
         print(title)
         print("=" * 70)
@@ -195,19 +213,22 @@ class ExhaustiveWinLoseTest:
         correct = 0
         failed_cases = []
 
-        for i, (board, correct_action, desc) in enumerate(test_cases):
+        for i, (board, correct_actions, desc) in enumerate(test_cases):
             predicted_action = self._predict_action(board, deterministic=True)
-            is_correct = (predicted_action == correct_action)
+            # 只要预测的动作在所有正确动作中，就算对
+            is_correct = (predicted_action in correct_actions)
 
             if is_correct:
                 correct += 1
             else:
-                failed_cases.append((board, correct_action, predicted_action, desc))
+                failed_cases.append((board, correct_actions, predicted_action, desc))
 
             if verbose and not is_correct:
                 print(f"\n✗ [{i+1}/{len(test_cases)}] {desc}")
-                print(self._visualize_board(board, highlight_pos=correct_action))
-                print(f"  正确: {correct_action}, 预测: {predicted_action}")
+                # 高亮显示第一个正确位置
+                print(self._visualize_board(board, highlight_pos=correct_actions[0]))
+                print(f"  正确动作: {correct_actions}")
+                print(f"  预测动作: {predicted_action}")
 
         accuracy = correct / len(test_cases) * 100 if len(test_cases) > 0 else 0
 
@@ -218,13 +239,14 @@ class ExhaustiveWinLoseTest:
         # 显示部分失败案例
         if len(failed_cases) > 0 and not verbose:
             print(f"\n失败案例示例 (显示前{min(max_display, len(failed_cases))}个):")
-            for i, (board, correct_action, predicted_action, desc) in enumerate(failed_cases[:max_display]):
+            for i, (board, correct_actions, predicted_action, desc) in enumerate(failed_cases[:max_display]):
                 num_x = int(np.sum(board == 1))
                 num_o = int(np.sum(board == -1))
                 print(f"\n案例 {i+1}: {desc}")
                 print(f"  棋子数: X(己方)={num_x}, O(对手)={num_o}, 差值={num_x-num_o}")
-                print(self._visualize_board(board, highlight_pos=correct_action))
-                print(f"  正确动作: {correct_action}")
+                # 高亮显示第一个正确位置
+                print(self._visualize_board(board, highlight_pos=correct_actions[0]))
+                print(f"  正确动作: {correct_actions} (任选其一)")
                 print(f"  预测动作: {predicted_action}")
 
         # 评级
@@ -256,9 +278,9 @@ class ExhaustiveWinLoseTest:
         # 分析获胜案例的错误模式
         print("\n1. 获胜案例错误分布:")
         win_errors = defaultdict(int)
-        for board, correct_action, predicted_action, desc in win_results['failed_cases']:
+        for _, _, _, desc in win_results['failed_cases']:
             # 提取组合名称
-            parts = desc.split(',')
+            parts = desc.split('(')
             if len(parts) > 0:
                 combo_part = parts[0].replace('Win ', '').strip()
                 win_errors[combo_part] += 1
@@ -272,8 +294,8 @@ class ExhaustiveWinLoseTest:
         # 分析防守案例的错误模式
         print("\n2. 防守案例错误分布:")
         lose_errors = defaultdict(int)
-        for board, correct_action, predicted_action, desc in lose_results['failed_cases']:
-            parts = desc.split(',')
+        for _, _, _, desc in lose_results['failed_cases']:
+            parts = desc.split('(')
             if len(parts) > 0:
                 combo_part = parts[0].replace('Block ', '').strip()
                 lose_errors[combo_part] += 1
