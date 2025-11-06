@@ -375,8 +375,23 @@ def sample_trajectories(oracle, env, n_steps, use_oracle=True):
     return dataset
 ```
 
+### 📘 详细指导
+
+这一步是VIPER算法的**核心**，建议阅读专门的详细指南：
+
+👉 **[VIPER_SAMPLE_TRAJECTORY_GUIDE.md](VIPER_SAMPLE_TRAJECTORY_GUIDE.md)** - 采样轨迹完整指南
+
+该指南包含：
+- ✅ VIPER混合策略的详细原理（Beta参数）
+- ✅ 为什么标签永远来自Oracle（模仿学习的本质）
+- ✅ 原始VIPER代码逐行解析
+- ✅ Mask PPO适配版本实现框架
+- ✅ 完整的测试策略（从简单到复杂）
+- ✅ 常见错误和调试技巧
+
 ### 参考文件
 - **`train/viper.py`** 第 137-184 行 `sample_trajectory()` 函数
+- **`VIPER_SAMPLE_TRAJECTORY_GUIDE.md`** - 本步骤的详细指南
 
 ### 数据格式
 

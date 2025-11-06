@@ -2,6 +2,28 @@
 
 本指南说明如何使用 MaskablePPO 训练的神经网络模型，通过 VIPER 框架训练一个可解释的决策树。
 
+## 📁 模型保存和命名规则
+
+训练的模型会自动保存到 `log/viper_mask_ppo_tictactoe/` 目录下，文件名包含：
+- **时间戳**（格式：`YYYYMMDD_HHMMSS`）
+- **训练参数**（迭代次数、采样数、树深度、最大叶子数）
+
+**示例文件结构**：
+```
+log/viper_mask_ppo_tictactoe/
+├── viper_mask_ppo_tree_20250106_143022_iter10_samples5000_depth10_leaves50.joblib
+└── viper_mask_ppo_tree_20250106_143022_iter10_samples5000_depth10_leaves50_training_log.txt
+```
+
+**训练日志文件** 包含：
+- 训练配置参数
+- 每次迭代的评估结果（奖励、胜率、数据集大小）
+- 最终最佳模型信息
+
+这样你可以轻松区分和追溯不同参数和时间的训练结果！
+
+---
+
 ## 📋 概述
 
 **目标**：将通过 MaskablePPO 训练的 TicTacToe 神经网络策略，提取为一个可解释的决策树。
