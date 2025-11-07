@@ -334,7 +334,7 @@ class RegressionTreePolicy:
         return logits
 
 def evaluate_policy(policy, env_name='TicTacToe-v0',
-                   opponent_type='random', n_episodes=5000):
+                   opponent_type='random', n_episodes=10000):
     """评估策略
 
     Returns:
