@@ -479,7 +479,7 @@ def train_viper(oracle_path, output_path,
         policies.append(policy)
 
         # 3.4 评估新策略
-        results = evaluate_policy(policy, opponent_type='random', n_episodes=100)
+        results = evaluate_policy(policy, opponent_type='random', n_episodes=10000)
         all_rewards.append(results['mean_reward'])
 
         print(f"✓ 评估结果:")
