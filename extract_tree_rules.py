@@ -28,8 +28,9 @@ import sys
 from pathlib import Path
 
 from model.tree_wrapper import TreeWrapper
-from gym_env import make_env
-from train.viper import load_oracle_env
+
+# 导入环境注册（注册TicTacToe-v0等环境）
+import gym_env
 
 
 def collect_training_data(args, n_samples=1000):
@@ -45,52 +46,38 @@ def collect_training_data(args, n_samples=1000):
     """
     print(f"\n收集 {n_samples} 个样本用于规则分析...")
 
-    env, oracle = load_oracle_env(args)
+    # 直接加载Oracle和环境
+    from sb3_contrib import MaskablePPO
+    import gymnasium as gym
+
+    env = gym.make(args.env_name, opponent_type=args.tictactoe_opponent)
+    oracle = MaskablePPO.load(args.oracle_path, env=env)
 
     X_samples = []
     y_samples = []
 
-    obs = env.reset()
+    obs, _ = env.reset()
     collected = 0
 
     while collected < n_samples:
-        # 使用Oracle预测动作
-        action, _ = oracle.predict(obs, deterministic=True)
+        # 计算mask
+        mask = (obs == 0).astype(bool)
 
-        # 处理向量化环境
-        if len(obs.shape) > 1 and obs.shape[0] > 1:
-            # 向量化环境
-            n_envs = obs.shape[0]
-            for i in range(n_envs):
-                if collected < n_samples:
-                    X_samples.append(obs[i])
-                    y_samples.append(action[i] if hasattr(action, '__len__') else action)
-                    collected += 1
-        else:
-            # 单个环境
-            X_samples.append(obs)
-            y_samples.append(action if not hasattr(action, '__len__') else action[0])
-            collected += 1
+        # 使用Oracle预测动作
+        import torch
+        mask_tensor = torch.tensor(mask).unsqueeze(0)
+        action, _ = oracle.predict(obs, deterministic=True, action_masks=mask_tensor)
+
+        X_samples.append(obs.copy())
+        y_samples.append(action)
+        collected += 1
 
         # 执行动作
-        step_result = env.step(action)
-        if len(step_result) == 5:
-            next_obs, reward, terminated, truncated, info = step_result
-            done = terminated or truncated
-        else:
-            next_obs, reward, done, info = step_result
+        obs, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
 
-        obs = next_obs
-
-        # 处理环境结束
-        if len(obs.shape) > 1 and obs.shape[0] > 1:
-            # 向量化环境
-            if hasattr(done, '__len__') and np.any(done):
-                obs = env.reset()
-        else:
-            # 单个环境
-            if done:
-                obs = env.reset()
+        if done:
+            obs, _ = env.reset()
 
     X = np.array(X_samples)
     y = np.array(y_samples)
@@ -130,7 +117,7 @@ def main():
                        help="打印的最大规则数量（None表示全部打印）")
 
     # 可选参数 - 规则简化
-    parser.add_argument("--env-name", type=str, default=None,
+    parser.add_argument("--env-name", type=str, default='TicTacToe-v0',
                        help="环境名称（用于收集训练数据进行规则简化）")
     parser.add_argument("--oracle-path", type=str, default=None,
                        help="Oracle模型路径（用于生成训练数据）")
@@ -139,12 +126,18 @@ def main():
     parser.add_argument("--alpha", type=float, default=0.05,
                        help="统计检验显著性水平（默认0.05）")
 
+    # 可选参数 - 规则优先级
+    parser.add_argument("--compute-priority", action='store_true',
+                       help="计算规则优先级（基于状态重要性）")
+    parser.add_argument("--sort-by-priority", action='store_true',
+                       help="按优先级对规则进行排序（需要--compute-priority）")
+
     # 环境参数
     parser.add_argument("--n-env", type=int, default=8,
                        help="并行环境数量")
     parser.add_argument("--seed", type=int, default=42,
                        help="随机种子")
-    parser.add_argument("--tictactoe-opponent", type=str, default="selfplay",
+    parser.add_argument("--tictactoe-opponent", type=str, default='random',
                        choices=['random', 'minmax', 'selfplay'],
                        help="井字棋对手类型")
 
@@ -179,48 +172,84 @@ def main():
     tree_wrapper = TreeWrapper.load(args.tree_path)
     tree_wrapper.print_info()
 
-    # 判断是否需要规则简化
+    # 判断是否需要规则简化或优先级计算
     need_simplification = (not args.no_simplify and
                           args.env_name is not None and
                           args.oracle_path is not None)
 
+    need_priority = args.compute_priority
+
+    # 检查优先级计算的必要参数
+    if need_priority and (args.oracle_path is None or args.env_name is None):
+        print("错误: 计算优先级需要提供 --oracle-path 和 --env-name 参数")
+        sys.exit(1)
+
+    # 加载oracle和环境（仅用于优先级计算，不需要采样）
+    oracle = None
+    env = None
+    if need_priority:
+        print("\n加载Oracle模型用于优先级计算...")
+        from sb3_contrib import MaskablePPO
+        import gymnasium as gym
+
+        env = gym.make(args.env_name, opponent_type=args.tictactoe_opponent)
+        oracle = MaskablePPO.load(args.oracle_path, env=env)
+        print("✓ Oracle模型加载成功")
+
+    # 准备训练数据（仅规则简化需要）
+    X_train = None
+    y_train = None
     if need_simplification:
-        print("\n将使用训练数据进行规则简化")
-
-        # 收集训练数据
+        print("\n收集训练数据用于规则简化...")
         X_train, y_train = collect_training_data(args, n_samples=args.n_samples)
-
-        # 设置训练数据
-        tree_wrapper.set_training_data(X_train, y_train)
-
-        # 提取并简化规则
-        print("\n" + "="*80)
-        print("开始规则提取和简化")
-        print("="*80)
-
-        extractor = tree_wrapper.extract_rules(alpha=args.alpha, verbose=True)
-
-        # 打印统计信息
-        stats = extractor.get_stats()
-        print("\n" + "="*80)
-        print("规则提取统计")
-        print("="*80)
-        for key, value in stats.items():
-            print(f"  {key}: {value}")
-
     else:
-        print("\n注意: 未提供训练数据，将只提取规则，不进行统计简化")
-        print("提示: 使用 --env-name 和 --oracle-path 参数可以进行规则简化")
+        # 不需要简化，创建虚拟数据（DecisionTreeRuleExtractor需要X_train来查找规则对应的状态）
+        print("\n创建虚拟训练数据（用于规则提取和优先级计算）...")
+        X_train = np.zeros((10, tree_wrapper.tree.n_features_in_))
+        y_train = np.zeros(10, dtype=int)
 
-        # 只提取规则，不简化
-        from model.rule_extractor import DecisionTreeRuleExtractor
+    tree_wrapper.set_training_data(X_train, y_train)
 
-        # 创建一个虚拟的训练集（只用于提取规则结构）
-        X_dummy = np.zeros((10, tree_wrapper.tree.n_features_in_))
-        y_dummy = np.zeros(10, dtype=int)
+    # 提取规则
+    print("\n" + "="*80)
+    print("开始规则提取")
+    print("="*80)
 
-        extractor = DecisionTreeRuleExtractor(tree_wrapper.tree, X_dummy, y_dummy)
-        extractor.extract_rules(verbose=True)
+    from model.rule_extractor import DecisionTreeRuleExtractor
+
+    extractor = DecisionTreeRuleExtractor(
+        tree_wrapper.tree, X_train, y_train,
+        oracle_model=oracle, env=env
+    )
+
+    # 1. 提取规则
+    extractor.extract_rules(verbose=True)
+
+    # 2. 如果需要，进行简化
+    if need_simplification:
+        print("\n" + "="*80)
+        print("步骤 2: 简化规则")
+        print("="*80)
+        extractor.simplify_rules(verbose=True)
+
+    # 3. 如果需要，计算优先级
+    if need_priority:
+        print("\n" + "="*80)
+        print("步骤 3: 计算规则优先级（不需要采样）")
+        print("="*80)
+        extractor.compute_rule_priorities(verbose=True)
+
+        if args.sort_by_priority:
+            print("\n按优先级排序规则（降序）...")
+            extractor.sort_rules_by_priority(descending=True)
+
+    # 打印统计信息
+    stats = extractor.get_stats()
+    print("\n" + "="*80)
+    print("规则提取统计")
+    print("="*80)
+    for key, value in stats.items():
+        print(f"  {key}: {value}")
 
     # 打印规则
     print("\n" + "="*80)
@@ -230,7 +259,14 @@ def main():
 
     # 导出规则
     tree_wrapper._rule_extractor = extractor  # 设置提取器
-    tree_wrapper.export_rules(args.output)
+
+    # 导出为文本文件
+    extractor.export_rules_to_text(str(args.output), include_vectors=True)
+
+    # 如果需要，也导出为JSON
+    json_output = str(args.output).replace('.txt', '.json')
+    if json_output != str(args.output):
+        extractor.export_rules_to_json(json_output)
 
     print("\n" + "="*80)
     print("完成！")
@@ -238,12 +274,19 @@ def main():
     print(f"规则已保存到: {args.output}")
     print(f"总共提取 {len(extractor.rules)} 条规则")
 
+    stats = extractor.get_stats()
     if need_simplification:
-        stats = extractor.get_stats()
         if 'n_removed_antecedents' in stats:
             print(f"简化过程中删除了 {stats['n_removed_antecedents']} 个前件")
         if 'default_consequent' in stats:
             print(f"最常见的动作: {stats['default_consequent']}")
+
+    if need_priority:
+        if 'priority_min' in stats and 'priority_max' in stats:
+            print(f"优先级范围: [{stats['priority_min']:.4f}, {stats['priority_max']:.4f}]")
+            print(f"平均优先级: {stats['priority_mean']:.4f}")
+        if args.sort_by_priority:
+            print("规则已按优先级降序排序")
 
 
 if __name__ == "__main__":

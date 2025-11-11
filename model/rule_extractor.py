@@ -22,30 +22,52 @@ class Rule:
     """表示一条IF-THEN规则"""
 
     def __init__(self, antecedents: List[Tuple[int, str, float]],
-                 consequent: int,
-                 support_count: int = 0):
+                 consequent,
+                 support_count: int = 0,
+                 priority: float = 0.0,
+                 output_vector: Optional[np.ndarray] = None):
         """
         初始化规则
 
         Args:
             antecedents: 前件列表 [(feature_idx, operator, value), ...]
                         operator in ['<=', '>']
-            consequent: 后件（预测的类别/动作）
+            consequent: 后件（对于分类树是int类别，对于回归树是np.ndarray向量）
             support_count: 支持该规则的样本数量
+            priority: 规则的优先级（状态重要性），数值越大越重要
+            output_vector: 输出向量（对于回归树，存储完整的预测向量，如9维logits）
         """
         self.antecedents = antecedents
         self.consequent = consequent
         self.support_count = support_count
+        self.priority = priority
+        self.output_vector = output_vector
+
+        # 如果是回归输出，自动设置output_vector
+        if output_vector is None and isinstance(consequent, np.ndarray):
+            self.output_vector = consequent.copy()
 
     def __str__(self) -> str:
         """生成可读的规则字符串"""
         if not self.antecedents:
+            if isinstance(self.consequent, np.ndarray):
+                return f"DEFAULT: output_vector = {self.consequent}"
             return f"DEFAULT: class = {self.consequent}"
 
         conditions = []
         for feature_idx, operator, value in self.antecedents:
             conditions.append(f"X[{feature_idx}] {operator} {value:.3f}")
-        return f"IF {' AND '.join(conditions)} THEN class = {self.consequent} (support={self.support_count})"
+
+        priority_str = f", priority={self.priority:.4f}" if self.priority > 0 else ""
+
+        # 根据consequent类型决定输出格式
+        if isinstance(self.consequent, np.ndarray):
+            # 回归树输出：显示向量
+            action = np.argmax(self.consequent)
+            return f"IF {' AND '.join(conditions)} THEN action = {action} (output_vector = {self.consequent}, support={self.support_count}{priority_str})"
+        else:
+            # 分类树输出：显示类别
+            return f"IF {' AND '.join(conditions)} THEN class = {self.consequent} (support={self.support_count}{priority_str})"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -69,41 +91,97 @@ class Rule:
                     return False
         return True
 
+    def get_best_action(self, mask: Optional[np.ndarray] = None) -> int:
+        """
+        获取最佳动作（考虑mask）
+
+        Args:
+            mask: 合法动作的mask（True表示合法），如果为None则不考虑mask
+
+        Returns:
+            最佳动作的索引
+        """
+        if self.output_vector is None:
+            # 分类树：直接返回consequent
+            if isinstance(self.consequent, np.ndarray):
+                return int(np.argmax(self.consequent))
+            return int(self.consequent)
+
+        # 回归树：从output_vector中选择最佳动作
+        logits = self.output_vector.copy()
+
+        if mask is not None:
+            # 应用mask：将不合法的动作设置为极小值
+            logits[~mask] = -np.inf
+
+        return int(np.argmax(logits))
+
     def to_dict(self) -> Dict:
         """将规则转换为字典格式"""
-        return {
-            'antecedents': self.antecedents,
-            'consequent': self.consequent,
-            'support_count': self.support_count,
+        # 转换antecedents，确保所有值都是Python原生类型
+        antecedents_list = []
+        for feature_idx, operator, value in self.antecedents:
+            antecedents_list.append([
+                int(feature_idx),
+                str(operator),
+                float(value)
+            ])
+
+        result = {
+            'antecedents': antecedents_list,
+            'support_count': int(self.support_count),
+            'priority': float(self.priority),
             'rule_string': str(self)
         }
+
+        # 处理consequent和output_vector
+        if isinstance(self.consequent, np.ndarray):
+            result['output_vector'] = [float(x) for x in self.consequent.tolist()]
+            result['best_action'] = int(np.argmax(self.consequent))
+        else:
+            result['consequent'] = int(self.consequent)
+
+        if self.output_vector is not None:
+            result['output_vector'] = [float(x) for x in self.output_vector.tolist()]
+
+        return result
 
 
 class DecisionTreeRuleExtractor:
     """决策树规则提取和简化器"""
 
-    def __init__(self, tree_model: DecisionTreeClassifier,
+    def __init__(self, tree_model,
                  X_train: np.ndarray,
                  y_train: np.ndarray,
                  feature_names: Optional[List[str]] = None,
-                 alpha: float = 0.05):
+                 alpha: float = 0.05,
+                 oracle_model=None,
+                 env=None):
         """
         初始化规则提取器
 
         Args:
-            tree_model: 训练好的sklearn决策树模型
+            tree_model: 训练好的sklearn决策树模型（DecisionTreeClassifier或DecisionTreeRegressor）
             X_train: 训练数据特征
-            y_train: 训练数据标签
+            y_train: 训练数据标签（对于回归树可以是多维向量）
             feature_names: 特征名称列表（可选）
             alpha: 统计检验显著性水平（默认0.05）
+            oracle_model: Oracle模型（用于计算状态重要性，可选）
+            env: 环境对象（用于计算状态重要性，可选）
         """
         self.tree = tree_model
         self.X_train = X_train
         self.y_train = y_train
         self.feature_names = feature_names
         self.alpha = alpha
+        self.oracle_model = oracle_model
+        self.env = env
         self.rules: List[Rule] = []
         self._extraction_stats = {}
+
+        # 检测树的类型
+        from sklearn.tree import DecisionTreeRegressor
+        self.is_regressor = isinstance(tree_model, DecisionTreeRegressor)
 
     def extract_rules(self, verbose: bool = False) -> List[Rule]:
         """
@@ -123,13 +201,39 @@ class DecisionTreeRuleExtractor:
             """递归遍历决策树节点"""
             # 如果是叶节点
             if tree_.feature[node] == -2:
-                # 获取该叶节点的类别
-                values = tree_.value[node][0]
-                consequent = np.argmax(values)
-                support_count = int(np.sum(values))
+                # 获取该叶节点的值
+                values = tree_.value[node]
+                print('values shape', values.shape, 'values', values)
+                reshaped_values = values.reshape(-1)
+                print('reshape_values shape', reshaped_values.shape, 'reshaped_values', reshaped_values)
+                values = reshaped_values
 
-                rule = Rule(antecedents.copy(), consequent, support_count)
-                self.rules.append(rule)
+                if self.is_regressor:
+                    # 回归树：values是预测的向量 (1, n_outputs) 或 (n_outputs,)
+                    if values.ndim == 2:
+                        output_vector = values[0]  # shape: (n_outputs,)
+                    else:
+                        output_vector = values
+
+                    # 支持计数从训练数据中计算
+                    support_count = tree_.n_node_samples[node]
+
+                    # consequent是完整的输出向量
+                    rule = Rule(
+                        antecedents.copy(),
+                        consequent=output_vector.copy(),
+                        support_count=support_count,
+                        output_vector=output_vector.copy()
+                    )
+                    self.rules.append(rule)
+                else:
+                    # 分类树：values是类别计数 (1, n_classes)
+                    values = values[0]
+                    consequent = np.argmax(values)
+                    support_count = int(np.sum(values))
+
+                    rule = Rule(antecedents.copy(), consequent, support_count)
+                    self.rules.append(rule)
             else:
                 # 内部节点，继续递归
                 feature_idx = feature[node]
@@ -380,9 +484,172 @@ class DecisionTreeRuleExtractor:
 
         return self.rules, default_consequent
 
+    def compute_rule_state(self, rule: Rule) -> Optional[np.ndarray]:
+        """
+        将规则的前件转换为对应的状态表示
+
+        根据规则的前件条件构造一个满足条件的最简单状态。
+
+        Args:
+            rule: 规则对象
+
+        Returns:
+            状态向量（observation），如果无法构造则返回None
+        """
+        if len(rule.antecedents) == 0:
+            # 没有前件（默认规则），返回None
+            return None
+
+        # 创建一个全0状态（空棋盘）
+        state = np.zeros(self.tree.n_features_in_)
+
+        # 根据规则的前件设置状态值
+        # 对于井字棋：状态值为 0（空）、1（己方）、-1（对手）
+        for feature_idx, operator, value in rule.antecedents:
+            if operator == '<=':
+                # 满足 X[i] <= value
+                if value >= 0.5:
+                    state[feature_idx] = 0  # 空位（0 <= 0.5）
+                elif value >= -0.5:
+                    state[feature_idx] = -1  # 对手（-1 <= 0）
+                else:
+                    state[feature_idx] = -1  # 对手
+            else:  # operator == '>'
+                # 满足 X[i] > value
+                if value < -0.5:
+                    state[feature_idx] = -1  # 对手（-1 > -1 不成立，这里用0）
+                    state[feature_idx] = 0   # 实际上用0
+                elif value < 0.5:
+                    state[feature_idx] = 1   # 己方（1 > 0）
+                else:
+                    state[feature_idx] = 1   # 己方
+
+        return state
+
+    def compute_state_criticality(self, observation: np.ndarray) -> float:
+        """
+        计算给定状态的重要性（criticality）
+
+        使用viper_mask_ppo中的compute_criticality函数的逻辑
+
+        Args:
+            observation: 状态向量
+
+        Returns:
+            状态重要性得分（float）
+        """
+        if self.oracle_model is None or self.env is None:
+            return 0.0
+
+        try:
+            import torch
+
+            # 确保observation是正确的形状
+            if observation.ndim == 1:
+                obs = observation
+            else:
+                obs = observation.flatten()
+
+            # 计算mask（对于井字棋，空位置为True）
+            mask = (obs == 0).astype(bool)
+            mask_tensor = torch.tensor(mask).unsqueeze(0)
+
+            # 获取所有可能的动作
+            possible_actions = np.where(mask)[0]
+
+            if len(possible_actions) == 0:
+                return 0.0
+
+            obs_tensor = torch.as_tensor(obs).unsqueeze(0).to(self.oracle_model.device)
+
+            # 计算每个动作的log概率
+            log_probs = []
+            for action in possible_actions:
+                action_tensor = torch.tensor([action]).to(self.oracle_model.device)
+                _, log_prob, _ = self.oracle_model.policy.evaluate_actions(
+                    obs_tensor, action_tensor, action_masks=mask_tensor
+                )
+                log_probs.append(log_prob.detach().cpu().numpy().flatten()[0])
+
+            log_probs = np.array(log_probs)
+
+            # 计算criticality: max(log_prob) - min(log_prob)
+            criticality = log_probs.max() - log_probs.min()
+
+            return float(criticality)
+
+        except Exception as e:
+            warnings.warn(f"计算状态重要性时出错: {e}")
+            return 0.0
+
+    def compute_rule_priorities(self, verbose: bool = False) -> List[Rule]:
+        """
+        为所有规则计算优先级（基于状态重要性）
+
+        Args:
+            verbose: 是否打印详细信息
+
+        Returns:
+            更新了优先级的规则列表
+        """
+        if self.oracle_model is None or self.env is None:
+            if verbose:
+                print("警告: 未提供oracle模型或环境，无法计算优先级")
+            return self.rules
+
+        if verbose:
+            print(f"\n计算 {len(self.rules)} 条规则的优先级...")
+
+        for i, rule in enumerate(self.rules):
+            # 找到代表该规则的状态
+            state = self.compute_rule_state(rule)
+
+            if state is not None:
+                # 计算该状态的重要性
+                priority = self.compute_state_criticality(state)
+                rule.priority = priority
+
+                if verbose and (i < 10 or i % 100 == 0):
+                    print(f"  规则 {i+1}: priority={priority:.4f}")
+            else:
+                rule.priority = 0.0
+                if verbose:
+                    print(f"  规则 {i+1}: 无法找到匹配状态，priority=0.0")
+
+        if verbose:
+            print(f"完成优先级计算")
+            priorities = [r.priority for r in self.rules]
+            print(f"  优先级范围: [{min(priorities):.4f}, {max(priorities):.4f}]")
+            print(f"  平均优先级: {np.mean(priorities):.4f}")
+
+        return self.rules
+
+    def sort_rules_by_priority(self, descending: bool = True) -> List[Rule]:
+        """
+        按优先级对规则进行排序
+
+        Args:
+            descending: True表示降序（优先级高的在前），False表示升序
+
+        Returns:
+            排序后的规则列表
+        """
+        self.rules = sorted(self.rules, key=lambda r: r.priority, reverse=descending)
+        return self.rules
+
     def get_stats(self) -> Dict:
         """获取提取统计信息"""
-        return self._extraction_stats.copy()
+        stats = self._extraction_stats.copy()
+
+        # 添加优先级统计
+        if self.rules:
+            priorities = [r.priority for r in self.rules]
+            stats['priority_min'] = float(np.min(priorities))
+            stats['priority_max'] = float(np.max(priorities))
+            stats['priority_mean'] = float(np.mean(priorities))
+            stats['priority_std'] = float(np.std(priorities))
+
+        return stats
 
     def print_rules(self, max_rules: Optional[int] = None):
         """
@@ -405,16 +672,21 @@ class DecisionTreeRuleExtractor:
 
         print(f"{'='*80}\n")
 
-    def export_rules_to_text(self, filepath: str):
+    def export_rules_to_text(self, filepath: str, include_vectors: bool = True):
         """
         将规则导出到文本文件
 
         Args:
             filepath: 输出文件路径
+            include_vectors: 是否包含完整的输出向量（对于回归树）
         """
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(f"决策树规则提取结果\n")
             f.write(f"{'='*80}\n\n")
+
+            # 写入树类型
+            tree_type = "回归树 (Regression)" if self.is_regressor else "分类树 (Classification)"
+            f.write(f"树类型: {tree_type}\n\n")
 
             f.write(f"统计信息:\n")
             for key, value in self._extraction_stats.items():
@@ -423,16 +695,75 @@ class DecisionTreeRuleExtractor:
 
             f.write(f"规则列表 (共 {len(self.rules)} 条):\n\n")
             for i, rule in enumerate(self.rules, 1):
-                f.write(f"规则 {i:3d}: {rule}\n")
+                # 写入规则条件
+                if rule.antecedents:
+                    conditions = []
+                    for feature_idx, operator, value in rule.antecedents:
+                        conditions.append(f"X[{feature_idx}] {operator} {value:.3f}")
+                    f.write(f"规则 {i:3d}: IF {' AND '.join(conditions)}\n")
+                else:
+                    f.write(f"规则 {i:3d}: DEFAULT RULE\n")
+
+                # 写入规则输出
+                if rule.output_vector is not None and include_vectors:
+                    # 回归树：显示完整的9维向量
+                    best_action = np.argmax(rule.output_vector)
+                    f.write(f"       THEN best_action = {best_action}\n")
+                    f.write(f"       output_vector = {rule.output_vector}\n")
+                    f.write(f"       (support={rule.support_count}")
+                    if rule.priority > 0:
+                        f.write(f", priority={rule.priority:.4f}")
+                    f.write(f")\n")
+                elif isinstance(rule.consequent, np.ndarray):
+                    # 回归树但不显示向量
+                    best_action = np.argmax(rule.consequent)
+                    f.write(f"       THEN best_action = {best_action}\n")
+                    f.write(f"       (support={rule.support_count}")
+                    if rule.priority > 0:
+                        f.write(f", priority={rule.priority:.4f}")
+                    f.write(f")\n")
+                else:
+                    # 分类树
+                    f.write(f"       THEN class = {rule.consequent}\n")
+                    f.write(f"       (support={rule.support_count}")
+                    if rule.priority > 0:
+                        f.write(f", priority={rule.priority:.4f}")
+                    f.write(f")\n")
+
+                f.write("\n")
 
         print(f"规则已导出到: {filepath}")
 
+    def export_rules_to_json(self, filepath: str):
+        """
+        将规则导出到JSON文件（便于程序读取）
 
-def extract_and_simplify_rules(tree_model: DecisionTreeClassifier,
+        Args:
+            filepath: 输出JSON文件路径
+        """
+        import json
+
+        output = {
+            'tree_type': 'regressor' if self.is_regressor else 'classifier',
+            'statistics': self.get_stats(),
+            'rules': [rule.to_dict() for rule in self.rules]
+        }
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(output, f, indent=2, ensure_ascii=False)
+
+        print(f"规则已导出到JSON: {filepath}")
+
+
+def extract_and_simplify_rules(tree_model,
                                 X_train: np.ndarray,
                                 y_train: np.ndarray,
                                 feature_names: Optional[List[str]] = None,
                                 alpha: float = 0.05,
+                                oracle_model=None,
+                                env=None,
+                                compute_priority: bool = False,
+                                sort_by_priority: bool = False,
                                 verbose: bool = True) -> DecisionTreeRuleExtractor:
     """
     便捷函数：提取并简化决策树规则
@@ -443,13 +774,17 @@ def extract_and_simplify_rules(tree_model: DecisionTreeClassifier,
         y_train: 训练数据标签
         feature_names: 特征名称列表
         alpha: 显著性水平
+        oracle_model: Oracle模型（用于计算状态重要性，可选）
+        env: 环境对象（用于计算状态重要性，可选）
+        compute_priority: 是否计算规则优先级
+        sort_by_priority: 是否按优先级排序规则
         verbose: 是否打印详细信息
 
     Returns:
         DecisionTreeRuleExtractor实例
     """
     extractor = DecisionTreeRuleExtractor(tree_model, X_train, y_train,
-                                         feature_names, alpha)
+                                         feature_names, alpha, oracle_model, env)
 
     if verbose:
         print("\n" + "="*80)
@@ -479,5 +814,24 @@ def extract_and_simplify_rules(tree_model: DecisionTreeClassifier,
         print("="*80)
 
     extractor.eliminate_redundant_rules(verbose=verbose)
+
+    # 计算优先级
+    if compute_priority:
+        if verbose:
+            print("\n" + "="*80)
+            print("步骤 4: 计算规则优先级")
+            print("="*80)
+
+        extractor.compute_rule_priorities(verbose=verbose)
+
+        # 按优先级排序
+        if sort_by_priority:
+            if verbose:
+                print("\n按优先级排序规则（降序）...")
+            extractor.sort_rules_by_priority(descending=True)
+
+            if verbose:
+                print("\n优先级最高的10条规则:")
+                extractor.print_rules(max_rules=10)
 
     return extractor

@@ -83,7 +83,7 @@ def parse_training_log(log_file):
     return info
 
 
-def load_and_evaluate_model(model_path, opponents=['random', 'minmax'], n_episodes=1000):
+def load_and_evaluate_model(model_path, opponents=['random', 'minmax'], n_episodes=10000):
     """加载模型并评估性能
 
     Args:
