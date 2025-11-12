@@ -1,0 +1,165 @@
+================================================================================
+                    DECISION TREE RULES REPORT
+                         TicTacToe VIPER Policy
+================================================================================
+
+Generated: 2025-01-12 14:30:00
+
+This report shows all decision tree rules learned by the VIPER algorithm.
+Rules are sorted by priority score (higher = more important).
+
+For each rule, we show:
+  - The board state (derived from rule conditions)
+  - The action priorities and probabilities
+  - The best action recommended by this rule
+
+
+================================================================================
+SUMMARY STATISTICS
+================================================================================
+
+Total Rules:           50
+Total Support Samples: 50000
+
+Priority Range:        [0.48, 9.04]
+Priority Mean:         3.78 ± 1.85
+
+Action Distribution (by support count):
+  Position 4 (Center        ):  15234 samples ( 30.5%)
+  Position 0 (Top-Left      ):   8945 samples ( 17.9%)
+  Position 8 (Bottom-Right  ):   7821 samples ( 15.6%)
+  Position 2 (Top-Right     ):   6543 samples ( 13.1%)
+  Position 6 (Bottom-Left   ):   5234 samples ( 10.5%)
+  Position 1 (Top-Center    ):   3456 samples (  6.9%)
+  Position 3 (Mid-Left      ):   1567 samples (  3.1%)
+  Position 5 (Mid-Right     ):    890 samples (  1.8%)
+  Position 7 (Bottom-Center ):    310 samples (  0.6%)
+
+Average Conditions per Rule: 7.0
+
+
+================================================================================
+DETAILED RULES
+================================================================================
+
+================================================================================
+RULE #1
+================================================================================
+  Priority Score:  9.0435
+  Support Count:   452 samples
+  Best Action:     4 (Center)
+
+     Board State:
+     ┌─────┬─────┬─────┐
+     │  O  │ ?/O │  ?  │
+     ├─────┼─────┼─────┤
+     │ ?/X │  ?  │ ?/X │
+     ├─────┼─────┼─────┤
+     │  X  │  ?  │  O  │
+     └─────┴─────┴─────┘
+
+     Legend: X=Player, O=Opponent, .=Empty, ?=Unconstrained
+             ?/X=Not opponent, ?/O=Not player
+
+  Rule Conditions:
+    1. Pos 1 (Top-Center) is not Player
+    2. Pos 6 (Bottom-Left) is not Opponent
+    3. Pos 6 (Bottom-Left) is Player (X)
+    4. Pos 0 (Top-Left) is Opponent (O)
+    5. Pos 3 (Mid-Left) is not Opponent
+    6. Pos 5 (Mid-Right) is not Opponent
+    7. Pos 8 (Bottom-Right) is Opponent (O)
+
+     Action Priority (sorted by score):
+     ----------------------------------------------------------------------
+     Rank   Pos   Position        Score      Prob     Status     Mark
+     ----------------------------------------------------------------------
+     1      4     Center         -0.330     88.35%   Unknown    ✓ BEST
+     2      6     Bottom-Left    -2.861     3.74%    Player(X)
+     3      3     Mid-Left       -3.039     3.44%    Unknown
+     4      1     Top-Center     -3.057     3.35%    Unknown
+     5      2     Top-Right      -3.105     3.26%    Unknown
+     6      5     Mid-Right      -3.653     1.68%    Unknown
+     7      0     Top-Left       -4.836     0.52%    Opp(O)
+     8      7     Bottom-Center  -5.530     0.24%    Unknown
+     9      8     Bottom-Right   -6.071     0.14%    Opp(O)
+
+  ✓ Rule appears valid
+
+================================================================================
+RULE #2
+================================================================================
+  Priority Score:  8.0726
+  Support Count:   316 samples
+  Best Action:     8 (Bottom-Right)
+
+     Board State:
+     ┌─────┬─────┬─────┐
+     │ ?/O │ ?/O │  X  │
+     ├─────┼─────┼─────┤
+     │  ?  │  ?  │  ?  │
+     ├─────┼─────┼─────┤
+     │  O  │ ?/X │  ?  │
+     └─────┴─────┴─────┘
+
+     Legend: X=Player, O=Opponent, .=Empty, ?=Unconstrained
+             ?/X=Not opponent, ?/O=Not player
+
+  Rule Conditions:
+    1. Pos 1 (Top-Center) is not Player
+    2. Pos 6 (Bottom-Left) is Opponent (O)
+    3. Pos 2 (Top-Right) is Player (X)
+    4. Pos 7 (Bottom-Center) is not Opponent
+    5. Pos 0 (Top-Left) is not Player
+
+     Action Priority (sorted by score):
+     ----------------------------------------------------------------------
+     Rank   Pos   Position        Score      Prob     Status     Mark
+     ----------------------------------------------------------------------
+     1      8     Bottom-Right   -0.829     45.67%   Unknown    ✓ BEST
+     2      6     Bottom-Left    -0.929     41.23%   Opp(O)
+     3      0     Top-Left       -3.972     0.98%    Unknown
+     4      2     Top-Right      -2.898     2.45%    Player(X)
+     5      7     Bottom-Center  -6.489     0.08%    Unknown
+     6      5     Mid-Right      -3.504     1.65%    Unknown
+     7      3     Mid-Left       -2.896     2.46%    Unknown
+     8      4     Center         -4.910     0.40%    Unknown
+     9      1     Top-Center     -8.359     0.01%    Unknown
+
+  ⚠ Potential Issues:
+    - ⚠ Best action position occupied by opponent!
+
+[... more rules follow ...]
+
+
+================================================================================
+                              END OF REPORT
+================================================================================
+
+INTERPRETATION NOTES FOR ADVISOR:
+
+1. PRIORITY SCORES: Higher scores indicate more important/confident rules.
+   Rules are sorted by priority, so the top rules are the most critical
+   decision patterns learned by the agent.
+
+2. BOARD STATES: Each rule activates under specific board conditions.
+   - X = Player's piece (the agent)
+   - O = Opponent's piece
+   - . = Empty position (confirmed)
+   - ? = Unconstrained (not checked by this rule)
+   - ?/X = Not opponent (could be empty or player)
+   - ?/O = Not player (could be empty or opponent)
+
+3. ACTION PRIORITIES: For each board state, the model assigns scores to
+   all possible actions. These are converted to probabilities via softmax.
+   The "BEST" action is the one with highest score.
+
+4. SUPPORT COUNT: Number of training samples that matched this rule.
+   Higher support means the rule was encountered more frequently during
+   training, making it more reliable.
+
+5. POLICY VERIFICATION: This explicit rule representation allows us to:
+   - Verify the policy makes sense strategically
+   - Check for potential bugs or incorrect learning
+   - Understand the agent's decision-making process
+   - Compare against optimal strategies (like MinMax)
