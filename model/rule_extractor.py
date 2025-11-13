@@ -525,6 +525,16 @@ class DecisionTreeRuleExtractor:
                     state[feature_idx] = 1   # 己方
 
         return state
+    
+    def compute_state_criticality_by_tree(self, rule: Rule) -> float:
+        """
+        通过决策树的输出计算状态重要性
+        Q:是否要计算mask应用到重要性计算中?
+        """
+        output_vector = rule.output_vector
+        criticality = np.argmax(output_vector) - np.min(output_vector)
+        return float(criticality)
+        
 
     def compute_state_criticality(self, observation: np.ndarray) -> float:
         """
