@@ -419,16 +419,25 @@ def train_viper(oracle_path, output_path,
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     params_str = f"iter{n_iterations}_samples{samples_per_iter}_depth{max_depth}_leaves{max_leaves}"
 
-    # 创建专门的日志文件夹
-    log_dir = "log/viper_mask_ppo_tictactoe"
-    os.makedirs(log_dir, exist_ok=True)
-
     # 生成完整的输出路径
     if output_path:
-        # 如果用户指定了路径，使用用户路径但添加时间戳和参数
-        base_name = os.path.splitext(os.path.basename(output_path))[0]
-        output_path = os.path.join(log_dir, f"{base_name}_{timestamp}_{params_str}.joblib")
+        # 检查output_path是否已经包含目录
+        if os.path.dirname(output_path):
+            # 用户指定了完整路径（包含目录）
+            log_dir = os.path.dirname(output_path)
+            base_name = os.path.splitext(os.path.basename(output_path))[0]
+            os.makedirs(log_dir, exist_ok=True)
+            output_path = os.path.join(log_dir, f"{base_name}_{timestamp}_{params_str}.joblib")
+        else:
+            # 用户只指定了文件名，使用默认目录
+            log_dir = "log/viper_mask_ppo_tictactoe"
+            os.makedirs(log_dir, exist_ok=True)
+            base_name = os.path.splitext(output_path)[0]
+            output_path = os.path.join(log_dir, f"{base_name}_{timestamp}_{params_str}.joblib")
     else:
+        # 没有指定路径，使用默认
+        log_dir = "log/viper_mask_ppo_tictactoe"
+        os.makedirs(log_dir, exist_ok=True)
         output_path = os.path.join(log_dir, f"viper_tree_{timestamp}_{params_str}.joblib")
 
     print(f"模型将保存到: {output_path}\n")
@@ -538,7 +547,7 @@ if __name__ == "__main__":
                        help='输出决策树模型名称（不含扩展名，会自动添加时间戳和参数）')
     parser.add_argument('--n_iterations', type=int, default=10,
                        help='VIPER迭代次数')
-    parser.add_argument('--samples_per_iter', type=int, default=50000,
+    parser.add_argument('--samples_per_iter', type=int, default=100000,
                        help='每轮采样数量')
     parser.add_argument('--max_depth', type=int, default=10,
                        help='决策树最大深度')
