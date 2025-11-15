@@ -526,13 +526,34 @@ class DecisionTreeRuleExtractor:
 
         return state
     
-    def compute_state_criticality_by_tree(self, rule: Rule) -> float:
+    def compute_mask_from_state(self, state: np.ndarray) -> np.ndarray:
+        """
+        从状态向量计算动作mask
+
+        Args:
+            state: 状态向量
+
+        Returns:
+            mask: 布尔数组，True表示该动作合法
+        """
+        # 对于井字棋，空位置（0）为合法动作
+        mask = (state == 0)
+        return mask
+
+    def compute_state_criticality_by_tree(self, rule: Rule, mask) -> float:
         """
         通过决策树的输出计算状态重要性
-        Q:是否要计算mask应用到重要性计算中?
+        mask: True表示合法动作(空位置)，False表示非法动作(已占据位置)
         """
-        output_vector = rule.output_vector
-        criticality = np.argmax(output_vector) - np.min(output_vector)
+        output_vector = rule.output_vector[mask]
+        # 如果没有合法动作，返回0
+        if len(output_vector) == 0:
+            return 0.0
+        criticality = np.max(output_vector) - np.min(output_vector)
+        print('output_vector before masking shape', rule.output_vector.shape, 'output_vector before masking', rule.output_vector)
+        print('mask shape', mask.shape, 'mask', mask)
+        print('output_vector shape', output_vector.shape, 'output_vector', output_vector)
+        print('criticality', criticality)
         return float(criticality)
         
 
@@ -591,6 +612,49 @@ class DecisionTreeRuleExtractor:
         except Exception as e:
             warnings.warn(f"计算状态重要性时出错: {e}")
             return 0.0
+        
+    def compute_rule_priorities_by_tree(self, verbose: bool = False) -> List[Rule]:
+        """
+        为所有规则计算优先级（基于状态重要性）
+
+        Args:
+            verbose: 是否打印详细信息
+
+        Returns:
+            更新了优先级的规则列表
+        """
+        if self.oracle_model is None or self.env is None:
+            if verbose:
+                print("警告: 未提供oracle模型或环境，无法计算优先级")
+            return self.rules
+
+        if verbose:
+            print(f"\n计算 {len(self.rules)} 条规则的优先级...")
+
+        for i, rule in enumerate(self.rules):
+            # 找到代表该规则的状态
+            state = self.compute_rule_state(rule)
+
+            if state is not None:
+                # 计算该状态的重要性
+                # priority = self.compute_state_criticality(state)
+                priority = self.compute_state_criticality_by_tree(rule, mask=self.compute_mask_from_state(state))
+                rule.priority = priority
+
+                if verbose and (i < 10 or i % 100 == 0):
+                    print(f"  规则 {i+1}: priority={priority:.4f}")
+            else:
+                rule.priority = 0.0
+                if verbose:
+                    print(f"  规则 {i+1}: 无法找到匹配状态，priority=0.0")
+
+        if verbose:
+            print(f"完成优先级计算")
+            priorities = [r.priority for r in self.rules]
+            print(f"  优先级范围: [{min(priorities):.4f}, {max(priorities):.4f}]")
+            print(f"  平均优先级: {np.mean(priorities):.4f}")
+
+        return self.rules
 
     def compute_rule_priorities(self, verbose: bool = False) -> List[Rule]:
         """
@@ -682,17 +746,40 @@ class DecisionTreeRuleExtractor:
 
         print(f"{'='*80}\n")
 
-    def export_rules_to_text(self, filepath: str, include_vectors: bool = True):
+    def export_rules_to_text(self, filepath: str, include_vectors: bool = True, metadata: dict = None):
         """
         将规则导出到文本文件
 
         Args:
             filepath: 输出文件路径
             include_vectors: 是否包含完整的输出向量（对于回归树）
+            metadata: 元数据字典，包含提取配置信息
         """
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(f"决策树规则提取结果\n")
             f.write(f"{'='*80}\n\n")
+
+            # 写入元数据（如果提供）
+            if metadata:
+                from datetime import datetime
+                f.write(f"提取配置:\n")
+                f.write(f"  生成时间: {metadata.get('timestamp', 'N/A')}\n")
+                f.write(f"  决策树路径: {metadata.get('tree_path', 'N/A')}\n")
+                f.write(f"  决策树大小: {metadata.get('tree_size', 'N/A')} 个叶节点\n")
+                if metadata.get('oracle_path'):
+                    f.write(f"  Oracle路径: {metadata.get('oracle_path', 'N/A')}\n")
+                f.write(f"  规则简化: {'否' if metadata.get('no_simplify', False) else '是'}\n")
+                if metadata.get('compute_priority'):
+                    priority_method = '决策树输出' if metadata.get('priority_by_tree', False) else 'Oracle输出'
+                    f.write(f"  优先级计算: 是 (基于{priority_method})\n")
+                else:
+                    f.write(f"  优先级计算: 否\n")
+                if metadata.get('sort_by_priority'):
+                    f.write(f"  按优先级排序: 是\n")
+                if not metadata.get('no_simplify', False):
+                    f.write(f"  简化样本数: {metadata.get('n_samples', 'N/A')}\n")
+                    f.write(f"  显著性水平α: {metadata.get('alpha', 'N/A')}\n")
+                f.write(f"\n")
 
             # 写入树类型
             tree_type = "回归树 (Regression)" if self.is_regressor else "分类树 (Classification)"
@@ -833,6 +920,7 @@ def extract_and_simplify_rules(tree_model,
             print("="*80)
 
         extractor.compute_rule_priorities(verbose=verbose)
+        #extractor.compute_rule_priorities_by_tree(verbose=verbose)
 
         # 按优先级排序
         if sort_by_priority:

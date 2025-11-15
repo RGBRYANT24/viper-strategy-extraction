@@ -32,6 +32,8 @@ class ProbabilityMaskedTreeWrapper:
 
     def predict(self, observation, state=None, episode_start=None, deterministic=True):
         """预测动作（带合法动作掩码）"""
+        from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
+
         # 处理输入shape
         if observation.ndim == 1:
             observation = observation.reshape(1, -1)
@@ -39,8 +41,14 @@ class ProbabilityMaskedTreeWrapper:
         else:
             single_obs = False
 
-        # 获取概率分布
-        action_probs = self.tree.predict_proba(observation)
+        # 获取输出（分类树用概率，回归树用预测值）
+        if isinstance(self.tree, DecisionTreeClassifier):
+            action_probs = self.tree.predict_proba(observation)
+        elif isinstance(self.tree, DecisionTreeRegressor):
+            # 回归树：输出是9维向量（logits）
+            action_probs = self.tree.predict(observation)
+        else:
+            raise ValueError(f"Unsupported tree type: {type(self.tree)}")
 
         # 对每个环境选择最佳合法动作
         actions = []
@@ -54,7 +62,7 @@ class ProbabilityMaskedTreeWrapper:
             if len(legal_actions) == 0:
                 action = 0
             else:
-                # 创建掩码概率
+                # 创建掩码概率/logits
                 masked_probs = np.full(self.n_actions, -np.inf)
                 masked_probs[legal_actions] = probs[legal_actions]
                 action = np.argmax(masked_probs)
@@ -70,13 +78,24 @@ class ProbabilityMaskedTreeWrapper:
 
     def print_info(self):
         """打印模型信息"""
+        from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
+
         print("\n" + "="*70)
         print("Decision Tree Information")
         print("="*70)
         print(f"Number of leaves: {self.tree.tree_.n_leaves}")
         print(f"Tree depth: {self.tree.tree_.max_depth}")
-        print(f"Number of classes: {self.tree.n_classes_}")
-        print(f"Classes: {list(self.tree.classes_)}")
+
+        if isinstance(self.tree, DecisionTreeClassifier):
+            print(f"Tree type: Classification")
+            print(f"Number of classes: {self.tree.n_classes_}")
+            print(f"Classes: {list(self.tree.classes_)}")
+        elif isinstance(self.tree, DecisionTreeRegressor):
+            print(f"Tree type: Regression")
+            print(f"Output dimension: {self.tree.n_outputs_}")
+        else:
+            print(f"Tree type: Unknown")
+
         print("="*70 + "\n")
 
 
@@ -232,6 +251,8 @@ def export_tree_rules(tree, output_path):
 
 def visualize_sample_decisions(policy, n_samples=5):
     """可视化一些样本决策"""
+    from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
+
     print("\n" + "="*70)
     print("Sample Decisions")
     print("="*70)
@@ -252,14 +273,24 @@ def visualize_sample_decisions(policy, n_samples=5):
             # 获取决策
             action, _ = policy.predict(obs, deterministic=True)
 
-            # 获取概率分布
-            probs = policy.tree.predict_proba(obs.reshape(1, -1))[0]
+            # 获取概率分布或logits
+            if isinstance(policy.tree, DecisionTreeClassifier):
+                probs = policy.tree.predict_proba(obs.reshape(1, -1))[0]
+                label = "Action probabilities (legal only):"
+            elif isinstance(policy.tree, DecisionTreeRegressor):
+                probs = policy.tree.predict(obs.reshape(1, -1))[0]
+                label = "Action logits (legal only):"
+            else:
+                probs = None
+                label = ""
+
             legal_actions = np.where(obs == 0)[0]
 
             print(f"Legal actions: {legal_actions}")
-            print(f"Action probabilities (legal only):")
-            for a in legal_actions:
-                print(f"  Action {a}: {probs[a]:.3f}")
+            if probs is not None:
+                print(label)
+                for a in legal_actions:
+                    print(f"  Action {a}: {probs[a]:.3f}")
             print(f"→ Chosen action: {action}")
 
             obs, reward, terminated, truncated, info = env.step(action)

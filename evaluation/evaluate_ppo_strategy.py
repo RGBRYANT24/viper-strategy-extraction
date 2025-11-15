@@ -58,14 +58,16 @@ class TicTacToeEvaluator:
         self.model = MaskablePPO.load(self.model_path, env=self.env)
         print(f"✓ 模型加载成功: {self.model_path}\n")
 
-    def test_against_opponents(self, num_games: int = 100) -> Dict[str, Dict]:
+    def test_against_opponents(self, num_games: int = 100, opponents: List[str] = None) -> Dict[str, Dict]:
         """测试1: 对抗不同对手"""
         print("=" * 70)
         print("测试 1: 对抗测试")
         print("=" * 70)
 
+        if opponents is None:
+            opponents = ['random', 'minmax']
+
         results = {}
-        opponents = ['random', 'minmax']
 
         for opponent in opponents:
             print(f"\n对战 {opponent.upper()} 对手 ({num_games} 局)...")
@@ -461,7 +463,10 @@ class TicTacToeEvaluator:
 
         return row * 3 + col
 
-    def run_full_evaluation(self, num_games: int = 100):
+    def run_full_evaluation(self, num_games: int = 100, opponents: List[str] = None,
+                           test_tactics: bool = True, test_opening: bool = True,
+                           test_symmetry: bool = True, test_determinism: bool = True,
+                           analyze_values: bool = True):
         """运行完整评估"""
         print("\n" + "=" * 70)
         print("PPO 模型策略质量综合评估")
@@ -470,13 +475,27 @@ class TicTacToeEvaluator:
 
         self.load_model()
 
-        # 运行所有测试
-        opponent_results = self.test_against_opponents(num_games)
-        tactical_results = self.test_tactical_knowledge()
-        opening_results = self.test_opening_quality()
-        symmetry_results = self.test_symmetry()
-        determinism_ok = self.test_determinism()
-        self.analyze_action_values()
+        # 运行测试
+        opponent_results = self.test_against_opponents(num_games, opponents=opponents)
+
+        tactical_results = None
+        if test_tactics:
+            tactical_results = self.test_tactical_knowledge()
+
+        opening_results = None
+        if test_opening:
+            opening_results = self.test_opening_quality()
+
+        symmetry_results = None
+        if test_symmetry:
+            symmetry_results = self.test_symmetry()
+
+        determinism_ok = None
+        if test_determinism:
+            determinism_ok = self.test_determinism()
+
+        if analyze_values:
+            self.analyze_action_values()
 
         # 综合评分
         print("\n" + "=" * 70)
@@ -486,8 +505,15 @@ class TicTacToeEvaluator:
         scores = []
 
         # 1. 对抗测试评分
-        random_win_rate = opponent_results['random']['win_rate']
-        minmax_draw_rate = opponent_results['minmax']['draws'] / num_games * 100
+        if 'random' in opponent_results:
+            random_win_rate = opponent_results['random']['win_rate']
+        else:
+            random_win_rate = 0
+
+        if 'minmax' in opponent_results:
+            minmax_draw_rate = opponent_results['minmax']['draws'] / num_games * 100
+        else:
+            minmax_draw_rate = 0
 
         if random_win_rate >= 95:
             opponent_score = 100
@@ -500,7 +526,8 @@ class TicTacToeEvaluator:
 
         scores.append(("对抗测试", opponent_score))
         print(f"\n1. 对抗测试: {opponent_score}/100")
-        print(f"   vs Random: {random_win_rate:.1f}% 胜率")
+        if 'random' in opponent_results:
+            print(f"   vs Random: {random_win_rate:.1f}% 胜率")
         print(f"   vs MinMax: {minmax_draw_rate:.1f}% 平局率")
 
         # 2. 战术知识评分
@@ -568,11 +595,40 @@ def main():
                        help='模型路径')
     parser.add_argument('--num-games', type=int, default=100,
                        help='对抗测试的游戏局数')
+    parser.add_argument('--opponent', type=str, default='both',
+                       choices=['random', 'minmax', 'both'],
+                       help='对手类型: random, minmax, 或 both (默认: both)')
+    parser.add_argument('--test-only', action='store_true',
+                       help='仅运行对抗测试，跳过其他测试')
 
     args = parser.parse_args()
 
+    # 确定对手列表
+    if args.opponent == 'both':
+        opponents = ['random', 'minmax']
+    else:
+        opponents = [args.opponent]
+
     evaluator = TicTacToeEvaluator(args.model)
-    evaluator.run_full_evaluation(num_games=args.num_games)
+
+    if args.test_only:
+        # 仅运行对抗测试
+        evaluator.load_model()
+        opponent_results = evaluator.test_against_opponents(args.num_games, opponents=opponents)
+
+        # 打印总结
+        print("\n" + "=" * 70)
+        print("评估完成！")
+        print("=" * 70)
+        for opponent, stats in opponent_results.items():
+            print(f"\nvs {opponent.upper()}:")
+            print(f"  胜率: {stats['win_rate']:.1f}%")
+            print(f"  平局率: {stats['draws']/args.num_games*100:.1f}%")
+            print(f"  败率: {stats['losses']/args.num_games*100:.1f}%")
+        evaluator.env.close()
+    else:
+        # 运行完整评估
+        evaluator.run_full_evaluation(num_games=args.num_games, opponents=opponents)
 
 
 if __name__ == "__main__":

@@ -26,6 +26,10 @@ import argparse
 import numpy as np
 import sys
 from pathlib import Path
+from datetime import datetime
+import joblib
+
+#from ../../model.tree_wrapper import TreeWrapper
 
 from model.tree_wrapper import TreeWrapper
 
@@ -131,6 +135,8 @@ def main():
                        help="计算规则优先级（基于状态重要性）")
     parser.add_argument("--sort-by-priority", action='store_true',
                        help="按优先级对规则进行排序（需要--compute-priority）")
+    parser.add_argument("--priority-by-tree", action='store_true',
+                       help="基于决策树输出计算规则优先级（否则基于Oracle输出）")
 
     # 环境参数
     parser.add_argument("--n-env", type=int, default=8,
@@ -155,9 +161,32 @@ def main():
         print(f"错误: 树文件不存在: {args.tree_path}")
         sys.exit(1)
 
-    # 设置输出路径
+    # 设置输出路径 - 添加时间戳和参数信息
     if args.output is None:
-        args.output = tree_path.with_suffix('.rules.txt')
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+        # 构建文件名后缀，包含关键参数
+        suffix_parts = []
+
+        # 是否简化
+        if args.no_simplify:
+            suffix_parts.append('nosimplify')
+        else:
+            suffix_parts.append('simplified')
+
+        # 优先级计算方式
+        if args.compute_priority:
+            if args.priority_by_tree:
+                suffix_parts.append('priority-tree')
+            else:
+                suffix_parts.append('priority-oracle')
+
+        # 是否排序
+        if args.sort_by_priority:
+            suffix_parts.append('sorted')
+
+        suffix_str = '_'.join(suffix_parts)
+        args.output = tree_path.parent / f"{tree_path.stem}_rules_{timestamp}_{suffix_str}.txt"
 
     print("="*80)
     print("决策树规则提取器")
@@ -178,6 +207,9 @@ def main():
                           args.oracle_path is not None)
 
     need_priority = args.compute_priority
+    need_priority_by_tree = False
+    if need_priority and args.priority_by_tree:
+        need_priority_by_tree = True
 
     # 检查优先级计算的必要参数
     if need_priority and (args.oracle_path is None or args.env_name is None):
@@ -237,7 +269,10 @@ def main():
         print("\n" + "="*80)
         print("步骤 3: 计算规则优先级（不需要采样）")
         print("="*80)
-        extractor.compute_rule_priorities(verbose=True)
+        if need_priority_by_tree:
+            extractor.compute_rule_priorities_by_tree(verbose=True)
+        else:
+            extractor.compute_rule_priorities(verbose=True)
 
         if args.sort_by_priority:
             print("\n按优先级排序规则（降序）...")
@@ -260,8 +295,22 @@ def main():
     # 导出规则
     tree_wrapper._rule_extractor = extractor  # 设置提取器
 
+    # 准备元数据
+    metadata = {
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'tree_path': str(args.tree_path),
+        'tree_size': tree_wrapper.tree.get_n_leaves(),
+        'oracle_path': args.oracle_path if args.oracle_path else None,
+        'no_simplify': args.no_simplify,
+        'compute_priority': args.compute_priority,
+        'priority_by_tree': args.priority_by_tree if args.compute_priority else False,
+        'sort_by_priority': args.sort_by_priority,
+        'n_samples': args.n_samples if not args.no_simplify else None,
+        'alpha': args.alpha if not args.no_simplify else None,
+    }
+
     # 导出为文本文件
-    extractor.export_rules_to_text(str(args.output), include_vectors=True)
+    extractor.export_rules_to_text(str(args.output), include_vectors=True, metadata=metadata)
 
     # 如果需要，也导出为JSON
     json_output = str(args.output).replace('.txt', '.json')

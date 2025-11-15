@@ -94,11 +94,12 @@ class RuleBasedPolicy:
 
         if rule is None:
             # 没有匹配规则，随机选择合法动作
-            if mask is not None:
-                legal_actions = np.where(mask)[0]
-                if len(legal_actions) > 0:
-                    return np.random.choice(legal_actions)
-            return np.random.randint(0, 9)
+            raise RuntimeError("没有匹配的规则！")
+            # if mask is not None:
+            #     legal_actions = np.where(mask)[0]
+            #     if len(legal_actions) > 0:
+            #         return np.random.choice(legal_actions)
+            # return np.random.randint(0, 9)
 
         # 获取输出向量
         if 'output_vector' in rule:
