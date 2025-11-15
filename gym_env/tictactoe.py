@@ -11,6 +11,7 @@ TicTacToe 环境实现 - 与 VIPER 框架完全兼容
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
+from gym_env.policies.baseline_policies import MinMaxPlayerPolicy, RandomPlayerPolicy
 
 
 class TicTacToeEnv(gym.Env):
@@ -33,11 +34,18 @@ class TicTacToeEnv(gym.Env):
     
     metadata = {'render.modes': ['human', 'ansi']}
 
-    def __init__(self, opponent_type='random', minmax_depth=9):
+    def __init__(self, opponent_type='random', minmax_depth=9, play_as_o_prob=0.5):
         """
         Args:
             opponent_type: 对手类型，可选 'random' 或 'minmax'
             minmax_depth: MinMax搜索深度（仅当opponent_type='minmax'时有效）
+            play_as_o_prob: 是玩家作为后手(O)的概率
+                        - 0.0: 总是先手(X)
+                        - 0.5: 随机先后手 (默认)
+                        - 1.0: 总是后手(O)
+                        注意这里是玩家(神经网络 决策树等)作为先手还是后手
+                        神经网络看到棋盘永远是1,X代表自己, -1,O代表对手
+                        
         """
         super().__init__()
 
@@ -49,6 +57,10 @@ class TicTacToeEnv(gym.Env):
             dtype=np.float32
         )
 
+        # 先后手设置
+        self.play_as_o_prob = play_as_o_prob
+        self.play_as_o = False # 当前是否后手在reset的时候决定
+
         # 动作空间: 9个可能的位置
         self.action_space = spaces.Discrete(9)
 
@@ -57,9 +69,19 @@ class TicTacToeEnv(gym.Env):
         self.done = False
         self.winner = None
 
-        # 对手设置
+        # 对手设置 - 使用 baseline_policies
         self.opponent_type = opponent_type
-        self.minmax_depth = minmax_depth
+        if opponent_type == 'minmax':
+            self.opponent_policy = MinMaxPlayerPolicy(
+                self.observation_space,
+                self.action_space,
+                depth=minmax_depth
+            )
+        else:  # random
+            self.opponent_policy = RandomPlayerPolicy(
+                self.observation_space,
+                self.action_space
+            )
 
         # 获胜组合（行、列、对角线）
         self.win_combinations = [
@@ -80,8 +102,29 @@ class TicTacToeEnv(gym.Env):
         self.board = np.zeros(9, dtype=np.float32)
         self.done = False
         self.winner = None
-        return self.board.copy(), {}
+
+        # 随机决定先手/后手
+        self.play_as_o = np.random.rand() < self.play_as_o_prob
+
+        # 如果玩家作为后手，先让环境下第一步
+        if self.play_as_o:
+            oppenent_action = self._opponent_move()
+            if oppenent_action is not None:
+                self.board[oppenent_action] = 1 # 实际棋盘上对手是1
+
+        # return self.board.copy(), {}
+        # 这里要做视角转换 根据先后手
+        return self._get_observation(), {}
     
+    def _get_observation(self):
+        """获取当前棋盘状态"""
+        if self.play_as_o:
+            # 玩家作为O，视角转换
+            obs = -self.board.copy()
+        else:
+            obs = self.board.copy()
+        return obs
+
     def step(self, action):
         """
         执行一步动作
@@ -102,45 +145,50 @@ class TicTacToeEnv(gym.Env):
             print(f"[ENV DEBUG] Step {self.step_count} (opponent: {self.opponent_type})")
 
         if self.done:
-            return self.board.copy(), 0, True, False, {'error': 'game_already_done'}
+            return self._get_observation(), 0, True, False, {'error': 'game_already_done'}
 
         # 检查动作是否合法
         if not self._is_valid_action(action):
             # 非法移动，游戏结束并给予惩罚
             self.done = True
-            return self.board.copy(), -10, True, False, {'illegal_move': True}
+            return self._get_observation(), -10, True, False, {'illegal_move': True}
 
-        # 玩家 X 落子
-        self.board[action] = 1
+        my_marker = -1 if self.play_as_o else 1
+
+        # 玩家 落子
+        self.board[action] = my_marker
 
         # 检查玩家是否获胜
-        if self._check_winner(1):
+        if self._check_winner(my_marker):
             self.done = True
-            self.winner = 1
-            return self.board.copy(), 1, True, False, {'winner': 'X'}
+            self.winner = my_marker
+            return self._get_observation(), 1, True, False, {'winner': 'self'}
 
         # 检查是否平局
         if not self._has_empty_cells():
             self.done = True
-            return self.board.copy(), 0, True, False, {'draw': True}
+            return self._get_observation(), 0, True, False, {'draw': True}
 
         # 对手 O 随机落子
         opponent_action = self._opponent_move()
-        self.board[opponent_action] = -1
+        if opponent_action is not None:
+            opponent_marker = 1 if self.play_as_o else -1
+            self.board[opponent_action] = opponent_marker
 
-        # 检查对手是否获胜
-        if self._check_winner(-1):
-            self.done = True
-            self.winner = -1
-            return self.board.copy(), -1, True, False, {'winner': 'O'}
 
-        # 再次检查平局
-        if not self._has_empty_cells():
-            self.done = True
-            return self.board.copy(), 0, True, False, {'draw': True}
+            # 检查对手是否获胜
+            if self._check_winner(opponent_marker):
+                self.done = True
+                self.winner = opponent_marker
+                return self._get_observation(), -1, True, False, {'winner': 'opponent'}
+
+            # 再次检查平局
+            if not self._has_empty_cells():
+                self.done = True
+                return self._get_observation(), 0, True, False, {'draw': True}
 
         # 游戏继续
-        return self.board.copy(), 0, False, False, {}
+        return self._get_observation(), 0, False, False, {}
     
     def _is_valid_action(self, action):
         """检查动作是否合法"""
@@ -162,104 +210,33 @@ class TicTacToeEnv(gym.Env):
         return np.where(self.board == 0)[0]
     
     def _opponent_move(self):
-        """对手选择动作（根据opponent_type）"""
-        if self.opponent_type == 'minmax':
-            # 使用副本避免修改原始board
-            return self._minmax_move(self.board.copy(), -1)
-        else:  # random
-            legal_actions = self._get_legal_actions()
-            return np.random.choice(legal_actions)
-
-    def _minmax_move(self, board, player):
-        """使用MinMax算法选择最优动作"""
-        best_score = float('-inf')
-        best_action = None
-        legal_actions = np.where(board == 0)[0]
-
-        if len(legal_actions) == 0:
-            return 0
-
-        # 早期游戏阶段：如果中心空，直接占中心（启发式优化）
-        if len(legal_actions) == 9:  # 第一步
-            return 4  # 中心位置
-        elif len(legal_actions) >= 7:  # 前两步
-            if 4 in legal_actions:
-                return 4  # 优先中心
-            corners = [0, 2, 6, 8]
-            available_corners = [c for c in corners if c in legal_actions]
-            if available_corners:
-                return available_corners[0]
-
-        for action in legal_actions:
-            board[action] = player
-            score = self._minimax(board, 0, False, player, float('-inf'), float('inf'))
-            board[action] = 0
-
-            if score > best_score:
-                best_score = score
-                best_action = action
-
-            # 如果找到必胜策略，直接返回
-            if best_score >= 10:
-                break
-
-        return best_action if best_action is not None else legal_actions[0]
-
-    def _minimax(self, board, depth, is_maximizing, player, alpha, beta):
-        """MinMax算法核心（带Alpha-Beta剪枝）"""
-        winner = self._check_winner_state(board)
-        if winner == player:
-            return 10 - depth  # 越快赢越好
-        elif winner == -player:
-            return -10 + depth  # 越晚输越好
-        elif winner == 0:  # 平局
-            return 0
-
-        if depth >= self.minmax_depth:
-            return 0
-
-        legal_actions = np.where(board == 0)[0]
-        if len(legal_actions) == 0:
-            return 0
-
-        if is_maximizing:
-            max_eval = float('-inf')
-            for action in legal_actions:
-                board[action] = player
-                eval_score = self._minimax(board, depth + 1, False, player, alpha, beta)
-                board[action] = 0
-                max_eval = max(max_eval, eval_score)
-                alpha = max(alpha, eval_score)
-                if beta <= alpha:
-                    break  # Beta剪枝
-            return max_eval
+        """
+        对手选择动作 - 使用 baseline_policies
+        
+        关键：对手也需要从自己的视角看棋盘
+        无论对手是X还是O，都要看到"自己=1，对手=-1"
+        因为调用的是 baseline_policies 中的 MinMaxPlayerPolicy 其中predict方法认为自己play的是1
+        """
+        opponent_marker = 1 if self.play_as_o else -1
+        if opponent_marker == 1:
+            # 对手(环境)是X(先手)，物理标记=1，不需要转换
+            opponent_view = self.board.copy()
         else:
-            min_eval = float('inf')
-            for action in legal_actions:
-                board[action] = -player
-                eval_score = self._minimax(board, depth + 1, True, player, alpha, beta)
-                board[action] = 0
-                min_eval = min(min_eval, eval_score)
-                beta = min(beta, eval_score)
-                if beta <= alpha:
-                    break  # Alpha剪枝
-            return min_eval
+            # 对手是O(后手)，物理标记=-1，需要转换让其看到自己=1
+            opponent_view = -self.board.copy()
+        # 使用baselinee_policies中的predict方法选择动作
+        try:
+            action, _ = self.opponent_policy.predict(opponent_view)
+            if self._is_valid_action(action):
+                return action
+        except Exception as e:
+            raise RuntimeError(f"Opponent policy Minmax failed to predict action: {e}")
+        # 如果策略失败或动作非法，随机选择
+        legal_actions = self._get_legal_actions()
+        if len(legal_actions) == 0:
+            return None
+        return np.random.choice(legal_actions)
 
-    def _check_winner_state(self, board):
-        """
-        检查游戏状态
-        返回: 1=X赢, -1=O赢, 0=平局, None=游戏未结束
-        """
-        for combo in self.win_combinations:
-            if all(board[pos] == 1 for pos in combo):
-                return 1
-            elif all(board[pos] == -1 for pos in combo):
-                return -1
-
-        if np.any(board == 0):
-            return None  # 游戏未结束
-
-        return 0  # 平局
     
     def render(self, mode='human'):
         """渲染当前棋盘状态"""
@@ -326,7 +303,6 @@ class TicTacToeSymmetricEnv(TicTacToeEnv):
 
 # ============ Gym 注册 ============
 # 注册已经在 gym_env/__init__.py 中完成
-
 
 # ============ 测试代码 ============
 if __name__ == "__main__":

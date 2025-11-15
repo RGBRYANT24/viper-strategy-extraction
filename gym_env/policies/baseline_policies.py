@@ -132,21 +132,23 @@ class MinMaxPlayerPolicy(BasePolicy):
         best_score = float('-inf')
         best_action = None
         legal_actions = np.where(board == 0)[0]
+        # print("baseline_policies::MinMaxPlayerPolicy:_minmax_move: legal_actions", legal_actions)
 
         if len(legal_actions) == 0:
             return 0
 
-        # 早期游戏启发式优化
+        # # 早期游戏启发式优化
         if len(legal_actions) == 9:  # 第一步
             return 4  # 中心位置
-        elif len(legal_actions) >= 7:  # 前两步
-            if 4 in legal_actions:
-                return 4  # 优先中心
-            corners = [0, 2, 6, 8]
-            available_corners = [c for c in corners if c in legal_actions]
-            if available_corners:
-                return available_corners[0]
+        # elif len(legal_actions) >= 7:  # 前两步
+        #     if 4 in legal_actions:
+        #         return 4  # 优先中心
+        #     corners = [0, 2, 6, 8]
+        #     available_corners = [c for c in corners if c in legal_actions]
+        #     if available_corners:
+        #         return available_corners[0]
 
+        score_map = {}
         for action in legal_actions:
             board[action] = player
             score = self._minimax(board, 0, False, player, float('-inf'), float('inf'))
@@ -155,16 +157,21 @@ class MinMaxPlayerPolicy(BasePolicy):
             if score > best_score:
                 best_score = score
                 best_action = action
+            score_map[action] = score
 
             # 如果找到必胜策略，直接返回
             if best_score >= 10:
                 break
+
+        for act, sc in score_map.items():
+            print("baseline_policies::MinMaxPlayerPolicy:_minmax_move: action", act, "score", sc)
 
         return best_action if best_action is not None else legal_actions[0]
 
     def _minimax(self, board, depth, is_maximizing, player, alpha, beta):
         """MinMax算法核心（带Alpha-Beta剪枝）"""
         winner = self._check_winner_state(board)
+        # print("baseline_policies::MinMaxPlayerPolicy:_minimax: depth", depth, "is_maximizing", is_maximizing, "winner", winner, "player", player)
         if winner == player:
             return 10 - depth  # 越快赢越好
         elif winner == -player:

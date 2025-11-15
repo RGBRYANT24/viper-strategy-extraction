@@ -49,7 +49,7 @@ class TicTacToeSelfPlayEnv(gym.Env):
 
         # 统计
         self.step_count = 0
-        self._debug_print_interval = 10000
+        self._debug_print_interval = 50000
 
     def set_opponent_policy(self, policy):
         """更新对手策略（用于自我对弈）"""
