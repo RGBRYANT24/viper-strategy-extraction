@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIPER 决策树可视化 (修复版)</title>
+
+    <script src="https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111827;
+            color: #f3f4f6;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        /* 基础布局样式 */
+        .header {
+            height: 60px;
+            background-color: #1f2937;
+            border-bottom: 1px solid #374151;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #60a5fa;
+        }
+
+        .btn {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #1d4ed8;
+        }
+
+        .btn-group {
+            display: flex;
+            background-color: #374151;
+            border-radius: 4px;
+            padding: 2px;
+        }
+
+        .icon-btn {
+            background: transparent;
+            border: none;
+            color: #e5e7eb;
+            padding: 6px 10px;
+            cursor: pointer;
+        }
+
+        .icon-btn:hover {
+            background-color: #4b5563;
+            border-radius: 2px;
+        }
+
+        /* 画布样式 */
+        #canvas-container {
+            width: 100vw;
+            height: calc(100vh - 60px);
+            overflow: hidden;
+            cursor: grab;
+            position: relative;
+        }
+
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+
+        /* 节点样式 */
+        .node-rect {
+            fill: #3b82f6;
+            stroke: #60a5fa;
+            stroke-width: 0;
+            transition: all 0.2s;
+        }
+
+        .node-rect.leaf {
+            fill: #059669;
+            stroke: #34d399;
+        }
+
+        .node-rect:hover {
+            stroke-width: 2px;
+            stroke: white;
+            filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+        }
+
+        .node-text {
+            fill: white;
+            font-size: 12px;
+            font-weight: 600;
+            user-select: none;
+            pointer-events: none;
+        }
+
+        .node-subtext {
+            fill: #d1d5db;
+            font-size: 10px;
+            user-select: none;
+            pointer-events: none;
+        }
+
+        /* 提示框 */
+        .tooltip {
+            position: absolute;
+            background: rgba(31, 41, 55, 0.95);
+            border: 1px solid #4b5563;
+            border-radius: 6px;
+            padding: 12px;
+            color: white;
+            pointer-events: none;
+            font-size: 12px;
+            min-width: 200px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+        }
+
+        .tooltip h3 {
+            margin: 0 0 8px 0;
+            border-bottom: 1px solid #4b5563;
+            padding-bottom: 4px;
+            font-size: 14px;
+            color: #60a5fa;
+        }
+
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .tooltip-val {
+            font-family: monospace;
+            color: #a7f3d0;
+        }
+
+        /* 空状态 */
+        .empty-state {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #9ca3af;
+            pointer-events: none;
+        }
+
+        /* 错误提示层 */
+        #error-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            color: #ef4444;
+            z-index: 9999;
+            padding: 20px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="error-overlay"></div>
+    <div id="root"></div>
+
+    <script>
+        // 全局错误捕捉，防止白屏
+        window.onerror = function (msg, url, line, col, error) {
+            const div = document.getElementById('error-overlay');
+            div.style.display = 'block';
+            div.innerHTML = `<h1>⚠️ 程序发生错误</h1><p>${msg}</p><p>位置: Line ${line}</p><p>请确保你已正确运行 export_to_json.py 并上传了生成的 JSON 文件。</p>`;
+            return false;
+        };
+    </script>
+
+    <script type="text/babel">
+        const { useState, useRef, useMemo } = React;
+
+        // 简单的 SVG 图标
+        const Icons = {
+            Upload: () => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>,
+            Plus: () => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>,
+            Minus: () => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" /></svg>,
+            Reset: () => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" /><path d="M3 3v9h9" /></svg>
+        };
+
+        const App = () => {
+            const [treeData, setTreeData] = useState(null);
+            const [expandedNodes, setExpandedNodes] = useState(new Set());
+            const [zoom, setZoom] = useState(0.8);
+            const [pan, setPan] = useState({ x: window.innerWidth / 2, y: 50 });
+            const [isDragging, setIsDragging] = useState(false);
+            const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+            const [hoveredNode, setHoveredNode] = useState(null);
+            const fileInputRef = useRef(null);
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        if (!data.tree) throw new Error("JSON 格式不对，缺少 tree 字段");
+                        setTreeData(data);
+                        setExpandedNodes(new Set([data.tree.id])); // 默认展开根节点
+                        setPan({ x: window.innerWidth / 2, y: 50 });
+                        setZoom(0.8);
+                    } catch (err) {
+                        alert("无法读取文件: " + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            const toggleNode = (id) => {
+                const newSet = new Set(expandedNodes);
+                if (newSet.has(id)) newSet.delete(id);
+                else newSet.add(id);
+                setExpandedNodes(newSet);
+            };
+
+            // === 核心布局算法 ===
+            const positions = useMemo(() => {
+                if (!treeData) return {};
+                const pos = {};
+                const nodeW = 140, nodeH = 60, gapX = 20, gapY = 100;
+
+                const getWidth = (node) => {
+                    if (!node.children || !expandedNodes.has(node.id) || node.children.length === 0) {
+                        return nodeW + gapX;
+                    }
+                    return node.children.reduce((sum, child) => sum + getWidth(child), 0);
+                };
+
+                const traverse = (node, x, y, level) => {
+                    pos[node.id] = { x, y, node, level };
+                    if (node.children && expandedNodes.has(node.id)) {
+                        let startX = x - getWidth(node) / 2;
+                        node.children.forEach(child => {
+                            const w = getWidth(child);
+                            traverse(child, startX + w / 2, y + gapY, level + 1);
+                            startX += w;
+                        });
+                    }
+                };
+                traverse(treeData.tree, 0, 0, 0);
+                return pos;
+            }, [treeData, expandedNodes]);
+
+            return (
+                <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
+                    {/* 头部工具栏 */}
+                    <div className="header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                            <span className="title">决策树查看器</span>
+                            <button className="btn" onClick={() => fileInputRef.current.click()}>
+                                <Icons.Upload /> 加载 JSON 数据
+                            </button>
+                            <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} accept=".json" />
+                            {treeData && <span style={{ fontSize: '12px', color: '#9ca3af' }}>节点数: {treeData.metadata.n_nodes} | 深度: {treeData.metadata.max_depth}</span>}
+                        </div>
+                        <div className="btn-group">
+                            <button className="icon-btn" onClick={() => setZoom(z => Math.max(0.1, z - 0.1))}><Icons.Minus /></button>
+                            <span style={{ color: 'white', padding: '6px 8px', fontSize: '12px' }}>{Math.round(zoom * 100)}%</span>
+                            <button className="icon-btn" onClick={() => setZoom(z => Math.min(3, z + 0.1))}><Icons.Plus /></button>
+                            <button className="icon-btn" onClick={() => { setZoom(0.8); setPan({ x: window.innerWidth / 2, y: 50 }); }}><Icons.Reset /></button>
+                        </div>
+                    </div>
+
+                    {/* 画布区域 */}
+                    <div
+                        id="canvas-container"
+                        onMouseDown={e => { setIsDragging(true); setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y }); }}
+                        onMouseMove={e => isDragging && setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y })}
+                        onMouseUp={() => setIsDragging(false)}
+                        onMouseLeave={() => setIsDragging(false)}
+                        onWheel={e => setZoom(z => Math.max(0.1, Math.min(3, z + (e.deltaY > 0 ? -0.1 : 0.1))))}
+                    >
+                        {!treeData && (
+                            <div className="empty-state">
+                                <h2>尚未加载数据</h2>
+                                <p>请点击左上角上传由 export_to_json.py 生成的 JSON 文件</p>
+                            </div>
+                        )}
+
+                        <svg width="100%" height="100%">
+                            <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
+                                {Object.keys(positions).map(id => {
+                                    const { x, y, node } = positions[id];
+                                    const isLeaf = node.type === 'leaf';
+
+                                    return (
+                                        <g key={id}>
+                                            {/* 连线 */}
+                                            {node.children && expandedNodes.has(id) && node.children.map(child => {
+                                                const childPos = positions[child.id];
+                                                if (!childPos) return null;
+                                                return (
+                                                    <path
+                                                        key={`link-${id}-${child.id}`}
+                                                        d={`M ${x} ${y + 30} C ${x} ${y + 80}, ${childPos.x} ${childPos.y - 50}, ${childPos.x} ${childPos.y - 30}`}
+                                                        fill="none" stroke="#4b5563" strokeWidth="2"
+                                                    />
+                                                );
+                                            })}
+
+                                            {/* 节点卡片 */}
+                                            <g
+                                                transform={`translate(${x}, ${y})`}
+                                                onClick={(e) => { e.stopPropagation(); if (!isLeaf) toggleNode(id); }}
+                                                onMouseEnter={() => setHoveredNode(id)}
+                                                onMouseLeave={() => setHoveredNode(null)}
+                                                style={{ cursor: isLeaf ? 'default' : 'pointer' }}
+                                            >
+                                                <rect
+                                                    x="-70" y="-30" width="140" height="60" rx="8"
+                                                    className={`node-rect ${isLeaf ? 'leaf' : ''}`}
+                                                />
+                                                <text x="0" y="-8" textAnchor="middle" className="node-text">
+                                                    {isLeaf ? `动作: ${node.action}` : node.label}
+                                                </text>
+                                                <text x="0" y="12" textAnchor="middle" className="node-subtext">
+                                                    {isLeaf ? `得分: ${node.score.toFixed(2)}` : node.condition}
+                                                </text>
+                                                <text x="0" y="24" textAnchor="middle" className="node-subtext" style={{ opacity: 0.6 }}>
+                                                    样本: {node.samples}
+                                                </text>
+
+                                                {!isLeaf && (
+                                                    <circle cy="30" r="6" fill="#1f2937" stroke="#4b5563" strokeWidth="1" />
+                                                )}
+                                                {!isLeaf && (
+                                                    <text y="33" textAnchor="middle" fill="#9ca3af" fontSize="10" style={{ pointerEvents: 'none' }}>
+                                                        {expandedNodes.has(id) ? "-" : "+"}
+                                                    </text>
+                                                )}
+                                            </g>
+                                        </g>
+                                    );
+                                })}
+                            </g>
+                        </svg>
+
+                        {/* 悬浮详情 */}
+                        {hoveredNode && positions[hoveredNode] && (
+                            <div className="tooltip" style={{ left: positions[hoveredNode].x * zoom + pan.x + 80, top: positions[hoveredNode].y * zoom + pan.y }}>
+                                <h3>节点详情 (ID: {hoveredNode})</h3>
+                                <div className="tooltip-row"><span>样本数:</span> <span className="tooltip-val">{positions[hoveredNode].node.samples}</span></div>
+                                <div className="tooltip-row"><span>不纯度:</span> <span className="tooltip-val">{positions[hoveredNode].node.impurity.toFixed(4)}</span></div>
+                                {positions[hoveredNode].node.type === 'leaf' && (
+                                    <>
+                                        <div className="tooltip-row"><span>推荐动作:</span> <span className="tooltip-val" style={{ color: '#34d399' }}>{positions[hoveredNode].node.action}</span></div>
+                                        <div className="tooltip-row"><span>最高分值:</span> <span className="tooltip-val">{positions[hoveredNode].node.score.toFixed(2)}</span></div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>

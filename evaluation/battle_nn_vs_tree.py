@@ -212,12 +212,12 @@ class DecisionTreePlayer:
         self.model = joblib.load(model_path)
         self.debug = debug
         self.predict_count = 0
-        print(f"已加载决策树模型: {model_path}")
-        print(f"  模型类型: {type(self.model)}")
+        print(f"DecisionTreePlayer: 已加载决策树模型: {model_path}")
+        print(f"DecisionTreePlayer: 模型类型: {type(self.model)}")
 
         # 检查是否有内部tree
         if hasattr(self.model, 'tree'):
-            print(f"  这是TreeWrapper，内部树类型: {type(self.model.tree)}")
+            print(f"DecisionTreePlayer: 这是TreeWrapper，内部树类型: {type(self.model.tree)}")
             if hasattr(self.model.tree, 'n_classes_'):
                 print(f"  类别数: {self.model.tree.n_classes_}")
                 print(f"  类别: {self.model.tree.classes_}")
@@ -260,7 +260,18 @@ class DecisionTreePlayer:
                 action = np.argmax(masked_probs)
         else:
             # 如果模型不支持predict_proba，退回到直接预测
-            action = self.model.predict(obs_reshaped)[0]
+            prediction = self.model.predict(obs_reshaped)[0]
+            
+            # 检查预测结果是否为向量（例如回归树预测Q值或概率）
+            if np.size(prediction) > 1:
+                action = np.argmax(prediction)
+            else:
+                action = prediction
+                
+            # 确保是标量
+            if hasattr(action, 'item'):
+                action = action.item()
+
 
         # 调试输出前几次预测
         self.predict_count += 1
@@ -305,8 +316,13 @@ class NeuralNetPlayer:
                 self.model = DQN.load(model_path)
             elif model_type == 'A2C':
                 self.model = A2C.load(model_path)
+            elif model_type == 'MaskablePPO':
+                if MaskablePPO is None:
+                    raise ImportError("sb3_contrib is not installed")
+                self.model = MaskablePPO.load(model_path)
             else:
                 raise ValueError(f"Unsupported model type: {model_type}")
+
 
         print(f"已加载神经网络模型 ({self.model_type}): {model_path}")
         if self.use_q_masking and self.model_type == 'DQN':
@@ -320,6 +336,9 @@ class NeuralNetPlayer:
             ('PPO', PPO),
             ('A2C', A2C),
         ]
+        if MaskablePPO is not None:
+            model_classes.insert(0, ('MaskablePPO', MaskablePPO))
+
 
         last_error = None
         for model_name, model_class in model_classes:
