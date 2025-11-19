@@ -92,7 +92,7 @@ class TicTacToeEnv(gym.Env):
 
         # 调试计数器
         self.step_count = 0
-        self._debug_print_interval = 100
+        self._debug_print_interval = 5000
         
     def reset(self, seed=None, options=None):
         """重置环境到初始状态"""
@@ -169,7 +169,7 @@ class TicTacToeEnv(gym.Env):
             self.done = True
             return self._get_observation(), 0, True, False, {'draw': True}
 
-        # 对手 O 随机落子
+        # 对手落子
         opponent_action = self._opponent_move()
         if opponent_action is not None:
             opponent_marker = 1 if self.play_as_o else -1
@@ -226,7 +226,9 @@ class TicTacToeEnv(gym.Env):
             opponent_view = -self.board.copy()
         # 使用baselinee_policies中的predict方法选择动作
         try:
+            # print("gym_env::tictactoe::_opponent_move: opponent_view", opponent_view)
             action, _ = self.opponent_policy.predict(opponent_view)
+            # print("gym_env::tictactoe::_opponent_move: opponent selected action", action)
             if self._is_valid_action(action):
                 return action
         except Exception as e:

@@ -214,6 +214,15 @@ def sample_trajectory_regression(oracle, policy, env, n_steps, beta=1.0):
         else:
             next_obs, reward, done, info = step_result
 
+        # print("viper_mask_ppo::sample_trajectory_regression: next_obs", next_obs.reshape(3,3), "reward", reward, "done", done)
+        # print("play_as_o", env.unwrapped.play_as_o)
+        # print("physical board", env.unwrapped.board.reshape(3,3))
+        test_flip_board_result = test_flip_board(env, next_obs)
+        # print("test_flip_board", test_flip_board_result)
+        if not test_flip_board_result:
+            raise ValueError("视角转换测试失败！")
+
+
         state_loss = compute_criticality(env, oracle, obs)
 
         # # 将 logits tensor 转换为 numpy 数组
@@ -238,11 +247,28 @@ def sample_trajectory_regression(oracle, policy, env, n_steps, beta=1.0):
 
     return trajectory
 
-def train_regression_tree(trajectory, max_depth=10, max_leaves=50):
+def test_flip_board(env, obs):
+    play_as_o = env.unwrapped.play_as_o
+    phsical_board = env.unwrapped.board.copy()
+
+    test_pass = False
+    if play_as_o:
+        test_pass = np.all(obs == -phsical_board)
+    else:
+        test_pass = np.all(obs == phsical_board)
+    return test_pass
+        
+
+def train_regression_tree(trajectory, max_depth=10, max_leaves=50,
+                         min_samples_split=10, min_samples_leaf=5):
     """训练回归决策树
 
     Args:
         trajectory: List of (obs, logits, weight)
+        max_depth: 树的最大深度
+        max_leaves: 最大叶子节点数
+        min_samples_split: 分裂所需的最小样本数
+        min_samples_leaf: 叶子节点所需的最小样本数
 
     Returns:
         tree: DecisionTreeRegressor
@@ -251,7 +277,7 @@ def train_regression_tree(trajectory, max_depth=10, max_leaves=50):
     # 准备训练数据
     X = np.array([obs for obs, _, _ in trajectory])       # (N, 9)
     y = np.array([logits for _, logits, _ in trajectory]) # (N, 9)
-    weights = np.array([w for _, _, w in trajectory])     # (N,) 
+    weights = np.array([w for _, _, w in trajectory])     # (N,)
 
     print(f"训练数据: X.shape={X.shape}, y.shape={y.shape}")
 
@@ -259,8 +285,8 @@ def train_regression_tree(trajectory, max_depth=10, max_leaves=50):
         max_depth=max_depth,
         max_leaf_nodes=max_leaves,
         random_state=42,
-        min_samples_split=10,  # 防止过拟合
-        min_samples_leaf=5
+        min_samples_split=min_samples_split,
+        min_samples_leaf=min_samples_leaf
     )
 
     tree.fit(X, y, sample_weight=weights)
@@ -334,13 +360,20 @@ class RegressionTreePolicy:
         return logits
 
 def evaluate_policy(policy, env_name='TicTacToe-v0',
-                   opponent_type='random', n_episodes=10000):
+                   opponent_type='random', n_episodes=10000, play_as_o_prob=0.5):
     """评估策略
+
+    Args:
+        policy: 要评估的策略
+        env_name: 环境名称
+        opponent_type: 对手类型
+        n_episodes: 评估局数
+        play_as_o_prob: 作为后手的概率（应与训练时一致）
 
     Returns:
         结果字典，包含 mean_reward, win_rate 等
     """
-    env = gym.make(env_name, opponent_type=opponent_type)
+    env = gym.make(env_name, opponent_type=opponent_type, play_as_o_prob=play_as_o_prob)
 
     episode_rewards = []
     wins, draws, losses = 0, 0, 0
@@ -410,14 +443,27 @@ def test_evaluation():
 
 def train_viper(oracle_path, output_path,
                 n_iterations=10, samples_per_iter=5000,
-                max_depth=10, max_leaves=50):
+                max_depth=10, max_leaves=50,
+                play_as_o_prob=0.5,
+                min_samples_split=10, min_samples_leaf=5):
     """训练VIPER回归树策略"""
     from datetime import datetime
     import os
 
     # 创建带时间戳和参数的输出路径
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    params_str = f"iter{n_iterations}_samples{samples_per_iter}_depth{max_depth}_leaves{max_leaves}"
+
+    # 生成先后手标识
+    if play_as_o_prob == 0.0:
+        player_str = "X-only"
+    elif play_as_o_prob == 1.0:
+        player_str = "O-only"
+    elif play_as_o_prob == 0.5:
+        player_str = "XO-random"
+    else:
+        player_str = f"O-prob{int(play_as_o_prob*100)}"
+
+    params_str = f"{player_str}_iter{n_iterations}_samples{samples_per_iter}_depth{max_depth}_leaves{max_leaves}"
 
     # 生成完整的输出路径
     if output_path:
@@ -453,11 +499,14 @@ def train_viper(oracle_path, output_path,
         f.write(f"Samples per iter: {samples_per_iter}\n")
         f.write(f"Max depth: {max_depth}\n")
         f.write(f"Max leaves: {max_leaves}\n")
+        f.write(f"Play as O prob: {play_as_o_prob}\n")
+        f.write(f"Min samples split: {min_samples_split}\n")
+        f.write(f"Min samples leaf: {min_samples_leaf}\n")
         f.write(f"Output: {output_path}\n")
         f.write(f"==================\n\n")
 
     # 1. 加载oracle
-    env = gym.make('TicTacToe-v0', opponent_type='random')
+    env = gym.make('TicTacToe-v0', opponent_type='random', play_as_o_prob=play_as_o_prob)
     oracle = MaskablePPO.load(oracle_path, env=env)
 
     # 2.初始化
@@ -482,13 +531,15 @@ def train_viper(oracle_path, output_path,
         all_data.extend(new_data)
 
         # 3.3 训练回归树
-        tree = train_regression_tree(new_data, max_depth=max_depth, max_leaves=max_leaves)
+        tree = train_regression_tree(new_data, max_depth=max_depth, max_leaves=max_leaves,
+                                    min_samples_split=min_samples_split, min_samples_leaf=min_samples_leaf)
         all_trees.append(tree)
         policy = RegressionTreePolicy(tree)
         policies.append(policy)
 
-        # 3.4 评估新策略
-        results = evaluate_policy(policy, opponent_type='random', n_episodes=10000)
+        # 3.4 评估新策略（使用与训练相同的先后手设置）
+        results = evaluate_policy(policy, opponent_type='random', n_episodes=10000,
+                                 play_as_o_prob=play_as_o_prob)
         all_rewards.append(results['mean_reward'])
 
         print(f"✓ 评估结果:")
@@ -553,6 +604,12 @@ if __name__ == "__main__":
                        help='决策树最大深度')
     parser.add_argument('--max_leaves', type=int, default=50,
                        help='决策树最大叶子节点数')
+    parser.add_argument('--play-as-o-prob', type=float, default=0.5,
+                       help='作为后手(O)的概率: 0.0=总是先手, 0.5=随机先后手(默认), 1.0=总是后手')
+    parser.add_argument('--min-samples-split', type=int, default=10,
+                       help='决策树分裂所需的最小样本数')
+    parser.add_argument('--min-samples-leaf', type=int, default=5,
+                       help='叶子节点所需的最小样本数')
 
     args = parser.parse_args()
 
@@ -576,6 +633,14 @@ if __name__ == "__main__":
         print(f"每轮采样: {args.samples_per_iter}")
         print(f"树深度: {args.max_depth}")
         print(f"最大叶子: {args.max_leaves}")
+        print(f"先后手设置: play_as_o_prob={args.play_as_o_prob}", end="")
+        if args.play_as_o_prob == 0.0:
+            print(" (总是先手)")
+        elif args.play_as_o_prob == 1.0:
+            print(" (总是后手)")
+        else:
+            print(" (随机先后手)")
+        print(f"决策树参数: min_samples_split={args.min_samples_split}, min_samples_leaf={args.min_samples_leaf}")
         print()
 
         train_viper(
@@ -584,5 +649,8 @@ if __name__ == "__main__":
             n_iterations=args.n_iterations,
             samples_per_iter=args.samples_per_iter,
             max_depth=args.max_depth,
-            max_leaves=args.max_leaves
+            max_leaves=args.max_leaves,
+            play_as_o_prob=args.play_as_o_prob,
+            min_samples_split=args.min_samples_split,
+            min_samples_leaf=args.min_samples_leaf
         )

@@ -23,8 +23,12 @@ import argparse
 import json
 import numpy as np
 import sys
+import os
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
+
+# 添加项目根目录到路径
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 导入环境注册
 import gym_env
@@ -128,7 +132,7 @@ class RuleBasedPolicy:
 
 
 def evaluate_policy(policy, opponent_type: str, n_episodes: int = 100,
-                   verbose: bool = False) -> Dict[str, float]:
+                   verbose: bool = False, play_as_o_prob: float = 0.5) -> Dict[str, float]:
     """
     评估策略性能
 
@@ -137,11 +141,12 @@ def evaluate_policy(policy, opponent_type: str, n_episodes: int = 100,
         opponent_type: 对手类型（'random', 'minmax'）
         n_episodes: 对战局数
         verbose: 是否显示详细信息
+        play_as_o_prob: 作为后手(O)的概率 (0.0=总是先手, 0.5=随机, 1.0=总是后手)
 
     Returns:
         包含胜率等统计信息的字典
     """
-    env = gym.make('TicTacToe-v0', opponent_type=opponent_type)
+    env = gym.make('TicTacToe-v0', opponent_type=opponent_type, play_as_o_prob=play_as_o_prob)
 
     wins = 0
     losses = 0
@@ -214,7 +219,7 @@ def evaluate_policy(policy, opponent_type: str, n_episodes: int = 100,
 
 
 def compare_with_tree(rules_policy, tree_path: str, opponent_type: str,
-                     n_episodes: int = 100) -> None:
+                     n_episodes: int = 100, play_as_o_prob: float = 0.5) -> None:
     """
     对比规则策略和决策树策略
 
@@ -223,6 +228,7 @@ def compare_with_tree(rules_policy, tree_path: str, opponent_type: str,
         tree_path: 决策树路径
         opponent_type: 对手类型
         n_episodes: 对战局数
+        play_as_o_prob: 作为后手(O)的概率
     """
     print("\n" + "="*80)
     print(f"规则策略 vs 决策树策略 (对手: {opponent_type})")
@@ -230,13 +236,13 @@ def compare_with_tree(rules_policy, tree_path: str, opponent_type: str,
 
     # 评估规则策略
     print("\n评估规则策略...")
-    rules_stats = evaluate_policy(rules_policy, opponent_type, n_episodes)
+    rules_stats = evaluate_policy(rules_policy, opponent_type, n_episodes, play_as_o_prob=play_as_o_prob)
 
     # 评估决策树策略
     print("\n评估决策树策略...")
     from model.tree_wrapper import TreeWrapper
     tree_wrapper = TreeWrapper.load(tree_path)
-    tree_stats = evaluate_policy(tree_wrapper, opponent_type, n_episodes)
+    tree_stats = evaluate_policy(tree_wrapper, opponent_type, n_episodes, play_as_o_prob=play_as_o_prob)
 
     # 打印对比结果
     print("\n" + "="*80)
@@ -308,6 +314,10 @@ def main():
     parser.add_argument("--tree-path", type=str, default=None,
                        help="决策树模型路径（用于对比）")
 
+    # 先后手设置
+    parser.add_argument("--play-as-o-prob", type=float, default=0.5,
+                       help="作为后手(O)的概率: 0.0=总是先手X, 0.5=随机(默认), 1.0=总是后手O")
+
     # 其他参数
     parser.add_argument("--verbose", action='store_true',
                        help="显示详细信息")
@@ -330,6 +340,13 @@ def main():
     print("="*80)
     print(f"规则文件: {args.rules}")
     print(f"对战局数: {args.n_episodes}")
+    print(f"先后手设置: play_as_o_prob={args.play_as_o_prob} ", end="")
+    if args.play_as_o_prob == 0.0:
+        print("(总是先手X)")
+    elif args.play_as_o_prob == 1.0:
+        print("(总是后手O)")
+    else:
+        print("(随机先后手)")
     print("="*80)
 
     # 加载规则策略
@@ -349,7 +366,8 @@ def main():
         print(f"评估对手: {opponent}")
         print("="*80)
 
-        stats = evaluate_policy(policy, opponent, args.n_episodes, args.verbose)
+        stats = evaluate_policy(policy, opponent, args.n_episodes, args.verbose,
+                               play_as_o_prob=args.play_as_o_prob)
         all_results[opponent] = stats
 
         # 打印结果
@@ -366,7 +384,8 @@ def main():
             print(f"\n警告: 决策树文件不存在: {args.tree_path}")
         else:
             for opponent in opponents:
-                compare_with_tree(policy, args.tree_path, opponent, args.n_episodes)
+                compare_with_tree(policy, args.tree_path, opponent, args.n_episodes,
+                                play_as_o_prob=args.play_as_o_prob)
 
     # 总结
     print("\n" + "="*80)

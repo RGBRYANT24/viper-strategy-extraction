@@ -35,6 +35,7 @@ class RandomPlayerPolicy(BasePolicy):
             state: 更新的状态（None）
         """
         # 处理批量输入
+        # print("baseline_policies::RandomPlayerPolicy: predict observation", observation)
         if len(observation.shape) == 1:
             observation = observation.reshape(1, -1)
             single_obs = True
@@ -57,6 +58,7 @@ class RandomPlayerPolicy(BasePolicy):
         actions = np.array(actions)
 
         if single_obs:
+            # print("baseline_policies::RandomPlayerPolicy: predict action", actions[0])
             return actions[0], None
         return actions, None
 
@@ -120,6 +122,7 @@ class MinMaxPlayerPolicy(BasePolicy):
 
         if single_obs:
             return actions[0], None
+        # print("baseline_policies::MinMaxPlayerPolicy: predict actions", actions)
         return actions, None
 
     def _predict(self, observation, deterministic=True):
@@ -163,8 +166,8 @@ class MinMaxPlayerPolicy(BasePolicy):
             if best_score >= 10:
                 break
 
-        for act, sc in score_map.items():
-            print("baseline_policies::MinMaxPlayerPolicy:_minmax_move: action", act, "score", sc)
+        # for act, sc in score_map.items():
+        #     print("baseline_policies::MinMaxPlayerPolicy:_minmax_move: action", act, "score", sc)
 
         return best_action if best_action is not None else legal_actions[0]
 

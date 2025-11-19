@@ -42,7 +42,12 @@ def train_single_config(config):
     # ========== 关键:必须在导入任何CUDA相关库之前设置 ==========
     import os
     import sys
-    
+
+    # 添加项目根目录到 Python 路径（修复多进程导入问题）
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
     gpu_id = config.get('gpu_id')
     if gpu_id is not None:
         # 为当前进程指定GPU
@@ -50,14 +55,14 @@ def train_single_config(config):
     else:
         # 强制使用CPU
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
-    
+
     # 清除已导入的torch相关模块,强制重新导入
-    modules_to_remove = [key for key in sys.modules.keys() 
+    modules_to_remove = [key for key in sys.modules.keys()
                          if 'torch' in key or 'cuda' in key]
     for module in modules_to_remove:
         del sys.modules[module]
     # ==========================================================
-    
+
     # 现在才导入项目依赖
     from train.viper_mask_ppo import train_viper
     
@@ -78,7 +83,10 @@ def train_single_config(config):
             n_iterations=config['n_iterations'],
             samples_per_iter=config['samples_per_iter'],
             max_depth=max_depth,
-            max_leaves=max_leaves
+            max_leaves=max_leaves,
+            play_as_o_prob=config.get('play_as_o_prob', 0.5),
+            min_samples_split=config.get('min_samples_split', 10),
+            min_samples_leaf=config.get('min_samples_leaf', 5)
         )
 
         result = {
@@ -110,7 +118,8 @@ def train_single_config(config):
 
 
 def generate_configs(oracle_path, output_base, n_iterations, samples_per_iter,
-                     depth_range, leaves_range, output_dir=None, depth_step=5, leaves_step=25):
+                     depth_range, leaves_range, output_dir=None, depth_step=5, leaves_step=25,
+                     play_as_o_prob=0.5, min_samples_split=10, min_samples_leaf=5):
     """生成所有配置组合
 
     Args:
@@ -151,6 +160,9 @@ def generate_configs(oracle_path, output_base, n_iterations, samples_per_iter,
             'samples_per_iter': samples_per_iter,
             'max_depth': depth,
             'max_leaves': leaf,
+            'play_as_o_prob': play_as_o_prob,
+            'min_samples_split': min_samples_split,
+            'min_samples_leaf': min_samples_leaf,
             'gpu_id': None  # 稍后分配
         }
         configs.append(config)
@@ -288,6 +300,12 @@ def main():
                        help='每个配置的VIPER迭代次数 (默认: 10)')
     parser.add_argument('--samples-per-iter', type=int, default=50000,
                        help='每轮采样数量 (默认: 50000)')
+    parser.add_argument('--play-as-o-prob', type=float, default=0.5,
+                       help='作为后手(O)的概率: 0.0=总是先手, 0.5=随机先后手(默认), 1.0=总是后手')
+    parser.add_argument('--min-samples-split', type=int, default=10,
+                       help='决策树分裂所需的最小样本数 (默认: 10)')
+    parser.add_argument('--min-samples-leaf', type=int, default=5,
+                       help='叶子节点所需的最小样本数 (默认: 5)')
 
     # 并行参数
     parser.add_argument('--n-workers', type=int, default=None,
@@ -303,10 +321,28 @@ def main():
 
     # 确定输出目录
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    if args.output_dir:
-        output_dir = args.output_dir
+
+    # 生成参数字符串用于目录命名
+    depth_str = f"d{args.depth_range[0]}-{args.depth_range[1]}"
+    leaves_str = f"l{args.leaves_range[0]}-{args.leaves_range[1]}"
+    iter_str = f"iter{args.n_iterations}"
+
+    # 根据 play_as_o_prob 生成玩家标签
+    if args.play_as_o_prob == 0.0:
+        player_str = "X"
+    elif args.play_as_o_prob == 1.0:
+        player_str = "O"
+    elif args.play_as_o_prob == 0.5:
+        player_str = "XO"
     else:
-        output_dir = f"log/viper_parallel_training_{timestamp}"
+        player_str = f"O{int(args.play_as_o_prob*100)}"
+
+    if args.output_dir:
+        # 用户指定目录：添加时间戳和关键参数
+        output_dir = f"{args.output_dir}_{timestamp}_{depth_str}_{leaves_str}_{iter_str}"
+    else:
+        # 默认目录：包含所有参数
+        output_dir = f"log/viper_{player_str}_{timestamp}_{depth_str}_{leaves_str}_{iter_str}"
 
     # 创建输出目录
     os.makedirs(output_dir, exist_ok=True)
@@ -322,7 +358,10 @@ def main():
         leaves_range=tuple(args.leaves_range),
         output_dir=output_dir,
         depth_step=args.depth_step,
-        leaves_step=args.leaves_step
+        leaves_step=args.leaves_step,
+        play_as_o_prob=args.play_as_o_prob,
+        min_samples_split=args.min_samples_split,
+        min_samples_leaf=args.min_samples_leaf
     )
 
     # 保存配置摘要(在输出目录下)
