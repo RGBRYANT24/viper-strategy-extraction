@@ -94,9 +94,19 @@ class TicTacToeVerifier:
             idx, op, val = ant
             # 将每一条数值约束 AND 起来
             clause = self._constraint_to_bdd(idx, op, val)
+            print(f"\n约束条件 X[{idx}] {op} {val}:")
+            print(f"  BDD节点数: {len(clause)}")
+            # 显示一个满足该条件的示例 (二进制表示)
+            example = self.bdd.pick(clause)
+            if example:
+                print(f"  示例赋值: {example}")
+            
             cond_bdd = cond_bdd & clause
+            print(f"\n累积条件的BDD节点数: {len(cond_bdd)}")
+            print(f"满足条件的状态数: {self.bdd.count(cond_bdd)}")
             
         action = rule_json['best_action']
+        print("parse_rule: action", action)
         return cond_bdd, action
 
     def build_move_transition(self, condition_bdd, action_idx):
@@ -129,6 +139,7 @@ class TicTacToeVerifier:
         对手可以在任意 Empty 的格子落子。
         T_opp = OR_over_all_empty_cells ( Cell_i is Empty & Next_Cell_i becomes Opponent & Others Unchanged )
         """
+        print("\n=== 对手可能的落子表达式 ===")
         t_opp = self.bdd.false
         
         for i in range(self.N):
@@ -136,21 +147,39 @@ class TicTacToeVerifier:
             y0, y1 = self._get_cell_expr(i, 'y')
             
             # 前提：该位置为空 (00)
-            is_empty = self.bdd.add_expr(f'~{x0} & ~{x1}')
+            is_empty_expr = f'~{x0} & ~{x1}'
+            is_empty = self.bdd.add_expr(is_empty_expr)
             
             # 结果：该位置变成 Opponent (01)
-            become_opp = self.bdd.add_expr(f'~{y0} & {y1}')
+            become_opp_expr = f'~{y0} & {y1}'
+            become_opp = self.bdd.add_expr(become_opp_expr)
             
             # 保持：其他位置不变
             frame = self.bdd.true
+            frame_exprs = []
             for j in range(self.N):
                 if i == j: continue
                 ux0, ux1 = self._get_cell_expr(j, 'x')
                 uy0, uy1 = self._get_cell_expr(j, 'y')
-                frame = frame & self.bdd.add_expr(f'({ux0} <-> {uy0}) & ({ux1} <-> {uy1})')
+                frame_expr = f'({ux0} <-> {uy0}) & ({ux1} <-> {uy1})'
+                frame_exprs.append(frame_expr)
+                frame = frame & self.bdd.add_expr(frame_expr)
             
             move_i = is_empty & become_opp & frame
             t_opp = t_opp | move_i
+            
+            # 打印该位置的转移表达式
+            print(f"\n--- 对手落子位置 {i} ---")
+            print(f"  前提条件 (格子{i}为空): {is_empty_expr}")
+            print(f"  结果 (格子{i}变为对手): {become_opp_expr}")
+            print(f"  完整转移表达式:")
+            print(f"    ({is_empty_expr}) & ({become_opp_expr})")
+            print(f"    & [其他格子保持不变]")
+            print(f"  BDD节点数: {len(move_i)}")
+        
+        print(f"\n=== 对手总转移关系 ===")
+        print(f"总BDD节点数: {len(t_opp)}")
+        print(f"满足条件的状态转移数: {self.bdd.count(t_opp)}")
             
         return t_opp
 
