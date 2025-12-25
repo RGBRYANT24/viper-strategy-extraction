@@ -1,0 +1,315 @@
+# VIPER Verifiable RL Implementation - Project Rules
+
+## 项目结构与工作习惯
+
+### 文件组织原则
+1. **主文件夹不堆叠文件** - 保持根目录整洁，按功能分类到子目录
+2. **非必要不新建** - 优先在现有文件/文件夹基础上修改
+3. **本地环境** - 这是本地开发机器，不执行命令，只提供命令让用户去服务器执行
+
+### 目录结构
+
+```
+viper-verifiable-rl-impl/
+├── train/              # 训练相关脚本
+│   ├── train_*.py      # 各种训练脚本
+│   └── run_*.sh        # 训练启动脚本
+├── model/              # 模型相关代码
+│   ├── tree_wrapper.py # 决策树包装器
+│   ├── paths.py        # 路径管理
+│   └── rules/          # 规则提取和处理
+├── gym_env/            # 环境定义
+│   └── tictactoe/      # TicTacToe环境
+├── evaluation/         # 评估脚本
+│   ├── battle_*.py     # 对战评估
+│   └── evaluate_*.py   # 性能评估
+├── analysis/           # 分析工具（新增）
+│   ├── visualization/  # 可视化工具
+│   │   ├── visualize_tree_rules.py
+│   │   ├── export_rules_report.py
+│   │   └── analyze_rules_tactical.py
+│   ├── export/         # 导出工具
+│   │   ├── export_tree_json.py
+│   │   ├── export_tree_text.py
+│   │   └── extract_tree_rules.py
+│   └── comparison/     # 对比分析
+│       ├── compare_rule_orderings.py
+│       └── analyze_viper_results.py
+├── test/               # 测试脚本
+│   └── test_*.py       # 各种测试
+├── docs/               # 文档（新增整理）
+│   ├── guides/         # 使用指南
+│   │   ├── visualization/  # 可视化相关文档
+│   │   │   ├── VISUALIZATION_README.md
+│   │   │   ├── 使用说明.md
+│   │   │   ├── 战术分析说明.md
+│   │   │   └── 工具总结.md
+│   │   ├── VIPER_LEARNING_GUIDE.md
+│   │   ├── VIPER_MASKABLE_PPO_GUIDE.md
+│   │   └── ...
+│   ├── examples/       # 示例输出
+│   │   ├── example_report.txt
+│   │   ├── tactical_analysis_example.txt
+│   │   └── ...
+│   └── technical/      # 技术分析
+│       ├── VIPER_TECHNICAL_ANALYSIS.md
+│       └── ...
+├── log/                # 训练日志和结果
+├── archive/            # 归档的旧代码
+├── debug/              # 调试相关
+└── verify/             # 验证脚本
+```
+
+### 命名约定
+
+#### Python文件
+- 训练脚本: `train_*.py`
+- 测试脚本: `test_*.py`
+- 评估脚本: `evaluate_*.py` 或 `battle_*.py`
+- 分析脚本: `analyze_*.py`
+- 导出脚本: `export_*.py`
+- 可视化脚本: `visualize_*.py`
+
+#### 文档文件
+- 英文大写: `README.md`, `GUIDE.md`, `ANALYSIS.md`
+- 中文: `使用说明.md`, `工具总结.md`
+- 示例: `example_*.txt`
+
+### 工作流程
+
+#### 1. 添加新功能
+```bash
+# 不要直接在根目录创建新文件
+# ❌ 错误
+touch new_analysis.py
+
+# ✓ 正确 - 放到合适的目录
+touch analysis/new_analysis.py
+```
+
+#### 2. 修改现有功能
+```bash
+# 优先修改现有文件，而不是创建新文件
+# ✓ 在 model/tree_wrapper.py 中添加新方法
+# 而不是创建 model/tree_wrapper_extended.py
+```
+
+#### 3. 文档更新
+```bash
+# 文档按类型整理到 docs/ 下
+# docs/guides/ - 使用指南
+# docs/examples/ - 示例
+# docs/technical/ - 技术分析
+```
+
+### 开发习惯
+
+#### 本地 vs 服务器
+- **本地机器**: 编辑代码、查看文件、规划任务
+- **服务器**: 执行训练、运行分析、生成报告
+
+#### 代码修改
+```python
+# ✓ 好的做法
+# 1. 先读取现有文件
+# 2. 理解现有结构
+# 3. 在现有基础上修改
+# 4. 保持风格一致
+
+# ❌ 避免
+# 1. 不看现有代码就创建新文件
+# 2. 重复实现已有功能
+# 3. 破坏现有代码结构
+```
+
+#### 文件组织
+```bash
+# ✓ 按功能分类
+analysis/visualization/visualize_tree_rules.py
+
+# ❌ 堆在根目录
+visualize_tree_rules.py
+```
+
+### 常用命令模式
+
+Claude Code 应该**提供**这些命令，让用户去服务器执行：
+
+```bash
+# 训练
+python train/train_viper_improved.py --env TicTacToe-v0
+
+# 分析
+python analysis/visualization/visualize_tree_rules.py --rule 1
+
+# 评估
+python evaluation/battle_nn_vs_tree.py
+
+# 测试
+python -m pytest test/
+```
+
+### Git 工作流
+
+```bash
+# 提交前检查
+git status
+git diff
+
+# 分步提交
+git add specific_file.py
+git commit -m "feat: add specific feature"
+
+# 避免一次性提交所有文件
+```
+
+### 特殊注意事项
+
+#### 决策树分析工具
+- 可视化工具在 `analysis/visualization/`
+- 文档在 `docs/guides/visualization/`
+- 示例输出在 `docs/examples/`
+
+#### 规则文件
+- JSON规则文件在 `log/` 下
+- 不要移动到其他地方（训练脚本依赖路径）
+
+#### 配置文件
+- 训练配置: `train/*.sh`
+- 环境配置: `gym_env/`
+- 模型配置: `model/`
+
+### 文档编写
+
+#### 中文文档
+- 使用场景: 个人使用、快速参考
+- 位置: `docs/guides/` 或根目录（重要文档）
+
+#### 英文文档
+- 使用场景: 给导师、论文材料、项目README
+- 位置: `docs/guides/` 或根目录
+
+#### 示例文件
+- 位置: `docs/examples/`
+- 格式: `example_*.txt` 或 `*_example.txt`
+
+### 依赖管理
+
+```bash
+# 查看依赖
+cat requirements.txt
+
+# 安装依赖（在服务器）
+pip install -r requirements.txt
+
+# 添加新依赖时，更新 requirements.txt
+pip freeze | grep new_package >> requirements.txt
+```
+
+### 日志和结果
+
+```
+log/
+├── viper_mask_ppo_tictactoe/    # 按模型和环境分类
+│   ├── *.pkl                     # 模型文件
+│   ├── *.json                    # 规则文件
+│   └── *.rules.json              # 规则详情
+└── training_logs/                # 训练日志
+```
+
+### 调试技巧
+
+```bash
+# 1. 小规模测试
+python script.py --max-rules 5
+
+# 2. 使用调试标志
+python script.py --debug
+
+# 3. 重定向输出
+python script.py > output.log 2>&1
+```
+
+### 项目特点
+
+1. **可解释性**: 决策树 vs 神经网络
+2. **可验证性**: 规则提取和分析
+3. **战术分析**: winning/losing条件
+4. **对比评估**: 不同方法的性能对比
+
+### 核心工具链
+
+1. **训练**: `train/train_viper_improved.py`
+2. **提取规则**: `model/rules/extract_tree_rules.py`
+3. **可视化**: `analysis/visualization/visualize_tree_rules.py`
+4. **战术分析**: `analysis/visualization/analyze_rules_tactical.py`
+5. **生成报告**: `analysis/visualization/export_rules_report.py`
+
+### 快速命令参考
+
+```bash
+# 完整工作流（在服务器执行）
+
+# 1. 训练模型
+cd train
+python train_viper_improved.py
+
+# 2. 提取规则
+cd ../model/rules
+python extract_tree_rules.py
+
+# 3. 可视化分析
+cd ../../analysis/visualization
+python visualize_tree_rules.py --rule 1
+
+# 4. 战术分析
+python analyze_rules_tactical.py --max-rules 10
+
+# 5. 生成报告
+python export_rules_report.py --output report.txt
+```
+
+### 版本控制建议
+
+```bash
+# 分支命名
+feature/add-new-analysis
+fix/correct-rule-extraction
+docs/update-visualization-guide
+
+# 提交信息格式
+feat: add tactical analysis tool
+fix: correct board enumeration logic
+docs: update visualization README
+refactor: reorganize project structure
+```
+
+### 代码风格
+
+- Python: PEP 8
+- 注释: 中文（方便理解）
+- 文档字符串: 中文或英文都可以
+- 变量命名: 英文（代码）+ 中文注释（解释）
+
+### 性能考虑
+
+- 大量枚举操作先用 `--max-rules 5` 测试
+- 输出大文件时指定输出路径
+- 避免在本地执行耗时操作
+
+### 安全注意
+
+- 不提交模型文件（.pkl）到 git
+- 不提交大日志文件
+- 敏感配置使用环境变量
+
+---
+
+## 总结
+
+记住这些原则：
+1. 保持根目录整洁
+2. 按功能分类文件
+3. 修改而非新建
+4. 本地编辑，服务器执行
+5. 文档完善，示例清晰

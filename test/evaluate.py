@@ -58,7 +58,22 @@ def evaluate_policy(
     # Avoid circular import
     from stable_baselines3.common.monitor import Monitor
 
-    is_monitor_wrapped = is_vecenv_wrapped(env, VecMonitor) or env.env_is_wrapped(Monitor)[0]
+    # 兼容 gymnasium: 使用 hasattr 检查而不是 env_is_wrapped
+    if isinstance(env, VecEnv):
+        is_monitor_wrapped = is_vecenv_wrapped(env, VecMonitor)
+    else:
+        # 对于非向量化环境，检查是否有 Monitor 包装器
+        # gymnasium 没有 env_is_wrapped 方法，需要手动检查
+        current_env = env
+        while current_env is not None:
+            if isinstance(current_env, Monitor):
+                is_monitor_wrapped = True
+                break
+            # 检查是否有 env 属性（包装器）
+            if hasattr(current_env, 'env'):
+                current_env = current_env.env
+            else:
+                break
 
     if not is_monitor_wrapped and warn:
         warnings.warn(
