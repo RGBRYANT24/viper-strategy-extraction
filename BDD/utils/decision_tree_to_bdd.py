@@ -173,6 +173,7 @@ if __name__ == '__main__':
     # Files will be saved in 'BDD/generated_bdds' or 'generated_bdds' with timestamp
     dt_to_bdd.dump_bdd(rule_bdd_node, 'user_rule')
 
-    expr = dt_to_bdd.bdd.to_expr(rule_bdd_node)
-    print(expr)
+    from BDD.utils.visualization import format_bdd_to_logic
+    print("\nPrepositional Logic Form:")
+    print(format_bdd_to_logic(bdd, rule_bdd_node))
     

@@ -112,3 +112,50 @@ def generate_visualization(bdd_manager, bdd_nodes, output_base_name, output_dir=
     json_to_dot(json_path, dot_path)
     
     return json_path, dot_path
+
+
+def format_bdd_to_logic(bdd_manager, bdd_node, limit=20):
+    """
+    Converts a BDD node to a readable propositional logic string (Sum-of-Products form).
+    Uses symbols: ∧ (AND), ∨ (OR), ¬ (NOT).
+    
+    Args:
+        bdd_manager: The BDD manager.
+        bdd_node: The BDD node to format.
+        limit: Max number of clauses to display (to prevent huge output).
+    """
+    if bdd_node == bdd_manager.true:
+        return "TRUE"
+    if bdd_node == bdd_manager.false:
+        return "FALSE"
+
+    clauses = []
+    iterator = bdd_manager.pick_iter(bdd_node)
+    
+    try:
+        count = 0
+        for assignment in iterator:
+            if count >= limit:
+                clauses.append("...")
+                break
+            
+            literals = []
+            # Sort keys for consistent output
+            for var in sorted(assignment.keys()):
+                val = assignment[var]
+                if val:
+                    literals.append(f"{var}")
+                else:
+                    literals.append(f"¬{var}")
+            
+            # Join literals with AND
+            clause = "(" + " ∧ ".join(literals) + ")"
+            clauses.append(clause)
+            count += 1
+            
+    except Exception as e:
+        return f"Error formatting logic: {e}"
+
+    # Join clauses with OR
+    return " ∨ ".join(clauses)
+

@@ -1,0 +1,36 @@
+digraph BDD {
+    rankdir = TB;
+    node [shape = circle;];
+    // Terminal nodes
+    "T" [shape = box;label = "True";style = filled;color = lightgrey;];
+    "F" [shape = box;label = "False";style = filled;color = lightgrey;];
+    "46" [label = "x_8_1";];
+    "46" -> "F" [style = dashed;];
+    "46" -> "T" [style = solid;];
+    "48" [label = "x_8_0";];
+    "48" -> "46" [style = dashed; label = "-1";];
+    "48" -> "T" [style = solid;];
+    "51" [label = "x_6_1";];
+    "51" -> "48" [style = dashed;];
+    "51" -> "T" [style = solid;];
+    "52" [label = "x_6_0";];
+    "52" -> "T" [style = dashed;];
+    "52" -> "51" [style = solid;];
+    "53" [label = "x_5_1";];
+    "53" -> "52" [style = dashed;];
+    "53" -> "T" [style = solid;];
+    "54" [label = "x_3_1";];
+    "54" -> "53" [style = dashed;];
+    "54" -> "T" [style = solid;];
+    "55" [label = "x_1_0";];
+    "55" -> "54" [style = dashed;];
+    "55" -> "T" [style = solid;];
+    "56" [label = "x_0_1";];
+    "56" -> "T" [style = dashed;];
+    "56" -> "55" [style = solid;];
+    "57" [label = "x_0_0";];
+    "57" -> "56" [style = dashed;];
+    "57" -> "T" [style = solid;];
+    root_0 [shape = point;style = invis;];
+    root_0 -> "57" [label = "NOT root";];
+}
