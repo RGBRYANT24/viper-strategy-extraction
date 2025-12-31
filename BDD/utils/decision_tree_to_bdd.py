@@ -1,4 +1,5 @@
 from dd.autoref import BDD
+from BDD.utils.visualization import format_bdd_to_logic
 
 class DecisionTreeToBDD:
     def __init__(self, bdd: BDD, game: str = 'tic_tac_toe'):
@@ -126,6 +127,104 @@ class DecisionTreeToBDD:
         # 排除非法状态 (11)
         valid_state = self.bdd.add_expr(f'~({v0} & {v1})')
         return res & valid_state
+
+    def process_leaf_vector(self, probability_vector):
+        """
+        Parses a leaf classification vector to generate action guards.
+        
+        Logic:
+           Sort actions by probability (descending).
+           Ideally, we pick the highest probability action that is VALID (cell is empty).
+           
+           Action_i = (Cell_i is Empty) AND (All higher prob cells are NOT Empty)
+        """
+        # Create list of (index, prob) tuples and sort desc
+        sorted_indices = sorted(range(len(probability_vector)), 
+                              key=lambda k: probability_vector[k], 
+                              reverse=True)
+                              
+        leaf_guards = {}
+        
+        # current_flow tracks the condition "All higher priority cells are occupied/invalid"
+        # Initially True (no higher priority cells checked yet)
+        current_flow = self.bdd.true 
+    
+        for idx in sorted_indices:
+            # Check if cell idx is empty: ~v0 & ~v1
+            # Note: _get_cell_expr returns (v0, v1) names
+            v0, v1 = self._get_cell_expr(idx, 'x')
+            print('idx', idx, 'v0', v0, 'v1', v1)
+            is_empty = self.bdd.add_expr(f'~{v0} & ~{v1}')
+            print('is_empty', format_bdd_to_logic(self.bdd, is_empty))
+            
+            # The guard for taking this action is:
+            # (We haven't taken previous ones) AND (This one is empty)
+            action_guard = current_flow & is_empty
+            
+            # Store guard if it's satisfiable (optimization)
+            if action_guard != self.bdd.false:
+                leaf_guards[idx] = action_guard
+            
+            # Update flow for next priority:
+            # We move to next priority if this cell was NOT empty (or we couldn't take it)
+            # So current_flow becomes: current_flow AND (NOT is_empty)
+            current_flow = current_flow & (~is_empty)
+            
+            # Pruning: if current_flow is False (meaning all paths blocked), stop
+            if current_flow == self.bdd.false:
+                break
+                
+        return leaf_guards
+
+    def recursive_build(self, tree, node_id, action_space):
+        """
+        递归构建 BDD，适配 Scikit-learn 的 tree_ 结构。
+        
+        Args:
+            tree: sklearn.tree._tree.Tree 对象 (例如 model.tree_)
+            node_id: 当前遍历到的节点索引 (从 0 开始)
+            action_space: 动作空间大小
+            
+        Returns: 
+            字典 {action_idx: BDD_Node}
+        """
+        # 1. Base Case: 叶子节点
+        # 在 sklearn 中，children_left 为 -1 表示是叶子节点
+        if tree.children_left[node_id] == -1:
+            # tree.value[node_id] 的形状通常是 (1, action_space) 或类似
+            # 取出该叶子的向量
+            leaf_vector = tree.value[node_id].flatten()
+            return self.process_leaf_vector(leaf_vector)
+
+        # 2. Recursive Step: 中间节点
+        # 获取特征索引和阈值
+        feature_index = tree.feature[node_id]
+        threshold = tree.threshold[node_id]
+        
+        # 构建当前节点的判断条件 BDD
+        # sklearn 约定：左子树满足 (x <= threshold)，右子树满足 (x > threshold)
+        # 所以这里的 condition_bdd 应该对应 "Go Left" 的条件
+        condition_bdd = self._constraint_to_bdd(feature_index, '<=', threshold)
+        
+        # 递归处理左右子树
+        left_child_id = tree.children_left[node_id]
+        right_child_id = tree.children_right[node_id]
+        
+        true_branch_dict = self.recursive_build(tree, left_child_id, action_space)
+        false_branch_dict = self.recursive_build(tree, right_child_id, action_space)
+        
+        # 3. 合并逻辑 (Merge)
+        merged_dict = {}
+        for action in range(action_space):
+            # 获取左右分支中该动作的 Guard，如果不存在默认为 False
+            g_true = true_branch_dict.get(action, self.bdd.false)
+            g_false = false_branch_dict.get(action, self.bdd.false)
+            
+            # 使用 ITE (If-Then-Else) 合并
+            # If (feature_index <= threshold) Then g_true Else g_false
+            merged_dict[action] = self.bdd.ite(condition_bdd, g_true, g_false)
+            
+        return merged_dict
 
 
 
