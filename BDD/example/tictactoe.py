@@ -189,12 +189,71 @@ class TicTacToeVerifier:
         # Strategy_Trans = (Rule1_Cond & Move1) | (Rule2_Cond & Move2) ...
         strategy_trans = self.bdd.false
         
-        for rule in rules_data:
+        for i, rule in enumerate(rules_data):
+            print(f"\n--- 处理规则 {i+1} ---")
             cond, action = self.parse_rule(rule)
             rule_trans = self.build_move_transition(cond, action)
             strategy_trans = strategy_trans | rule_trans
             
-        print(f"策略 BDD 节点数: {len(strategy_trans)}")
+            print(f"  -> 当前规则 Condition 节点数: {len(cond)}")
+            print(f"  -> 当前规则 Transition 节点数: {len(rule_trans)}")
+            print(f"  -> 累计策略 Strategy 节点数: {len(strategy_trans)}")
+
+        print(f"\n[BDD 结构详情]")
+        print(f"策略 BDD 总节点数 (DAG Size): {len(strategy_trans)}")
+        
+        # 1. 打印逻辑表达式
+        try:
+            print("\n--- 逻辑表达式 (to_expr) ---")
+            expr = self.bdd.to_expr(strategy_trans)
+            # 如果太长截断一下
+            if len(expr) > 500:
+                print(f"{expr[:500]} ... (省略 {len(expr)-500} 字符)")
+            else:
+                print(expr)
+        except Exception as e:
+            print(f"无法生成表达式: {e}")
+
+        # 2. 打印节点结构 (Text Dump)
+        print("\n--- 内部节点结构 (DFS 遍历前20个节点) ---")
+        visited_nodes = set()
+        
+        def print_nodes(u, depth=0):
+            if u in visited_nodes:
+                print(f"{'  ' * depth}Node {u} (Visited)")
+                return
+            if len(visited_nodes) > 20: # 限制打印数量
+                return
+            
+            visited_nodes.add(u)
+            
+            indent = "  " * depth
+            if u == self.bdd.true:
+                print(f"{indent}Node {u}: TRUE")
+                return
+            if u == self.bdd.false:
+                print(f"{indent}Node {u}: FALSE")
+                return
+            
+            try:
+                # 获取节点信息
+                # dd.autoref 中 u 只是由整数引用的句柄 (Function)
+                # 需要通过 self.bdd.var(u) 等方法获取信息
+                var = self.bdd.var(u)
+                low = self.bdd.low(u)
+                high = self.bdd.high(u)
+                print(f"{indent}Node {u}: IF {var} THEN (High) ELSE (Low)")
+                
+                # 递归打印子节点 (优先打印 High/True 分支)
+                print_nodes(high, depth + 1)
+                print_nodes(low, depth + 1)
+            except Exception as e:
+                print(f"{indent}Node {u}: (无法获取详情 {e})")
+
+        try:
+            print_nodes(strategy_trans)
+        except Exception as e:
+            print(f"遍历节点出错: {e}")
         
         # 2. 构建对手的转移关系 (Opponent Physics)
         print("构建对手逻辑 BDD...")
