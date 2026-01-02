@@ -1,3 +1,4 @@
+import gc
 import os
 import sys
 import joblib
@@ -311,7 +312,13 @@ class TicTacToeVerifier:
 
 if __name__ == "__main__":
     # Path to the model file
-    model_file = os.path.join(os.path.dirname(__file__), "../tests/data/viper_mask_ppo_tree_20251118_000500_X-only_iter15_samples25000_depth15_leaves125.joblib")
-    
+    # model_file = os.path.join(os.path.dirname(__file__), "../tests/data/viper_mask_ppo_tree_20251118_000500_X-only_iter15_samples25000_depth15_leaves125.joblib")
+    model_file = os.path.join(os.path.dirname(__file__), "../tests/data/viper_mask_ppo_tree_20251117_215151_X-only_iter15_samples25000_depth10_leaves150.joblib")   
+    # model_file = os.path.join(os.path.dirname(__file__), "../tests/data/viper_mask_ppo_tree_20251117_215151_X-only_iter15_samples25000_depth15_leaves25.joblib")       
+
     verifier = TicTacToeVerifier(model_file)
     verifier.verify()
+    
+    # Clean up explicitly to avoid BDD shutdown errors
+    del verifier
+    gc.collect()
