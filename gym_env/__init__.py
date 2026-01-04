@@ -42,6 +42,20 @@ if has_gymnasium:
         kwargs={'baseline_pool': None, 'learned_pool': None, 'play_as_o_prob': 0.5}
     )
 
+    # Register Connect4 environment
+    gymnasium_register(
+        id='Connect4-v0',
+        entry_point='gym_env.connect4:Connect4Env',
+        kwargs={'opponent_type': 'random', 'minmax_depth': 2}
+    )
+
+    # Register Connect4 Delta-Uniform Self-Play environment
+    gymnasium_register(
+        id='Connect4-DeltaSelfPlay-v0',
+        entry_point='gym_env.connect4_delta_selfplay:Connect4DeltaSelfPlayEnv',
+        kwargs={'baseline_pool': None, 'learned_pool': None, 'play_as_o_prob': 0.5}
+    )
+
 
 def make_env(args, test_viper=False):
     if args.env_name == "PongNoFrameskip-v4":
@@ -74,5 +88,24 @@ def make_env(args, test_viper=False):
                 env = gymnasium.make(args.env_name, opponent_type=opponent_type)
                 return RecordEpisodeStatistics(env)
             raise
+
+    elif args.env_name == "Connect4-v0":
+        if not has_gymnasium:
+             raise ImportError("Connect4 env requires gymnasium")
+        opponent_type = getattr(args, 'connect4_opponent', 'random')
+        # Similar logic to TicTacToe
+        from gymnasium.wrappers import RecordEpisodeStatistics
+        try:
+             from stable_baselines3.common.vec_env import DummyVecEnv as SB3DummyVecEnv
+             def make_connect4_env():
+                 env = gymnasium.make(args.env_name, opponent_type=opponent_type)
+                 env = RecordEpisodeStatistics(env)
+                 return env
+             return SB3DummyVecEnv([make_connect4_env for _ in range(args.n_env)])
+        except:
+             if args.n_env == 1:
+                 env = gymnasium.make(args.env_name, opponent_type=opponent_type)
+                 return RecordEpisodeStatistics(env)
+             raise
 
     raise NotImplementedError(f"Environment {args.env_name} not implemented")
