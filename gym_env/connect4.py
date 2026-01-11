@@ -112,8 +112,7 @@ class Connect4Env(gym.Env):
              return self._get_observation(), 0, True, False, {'error': 'game_already_done'}
 
         if not self._is_valid_action(action):
-             self.done = True
-             return self._get_observation(), -10, True, False, {'illegal_move': True}
+             raise ValueError(f"Illegal action {action} attempted. Valid actions: {self._get_legal_actions()}")
 
         # Determine my piece marker on the real board
         my_marker = -1 if self.play_as_o else 1
